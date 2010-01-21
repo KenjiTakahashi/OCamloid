@@ -113,39 +113,43 @@ class powerups=
 object (self)
 	inherit polygon as drawer
 	val mutable model=0
-	val mutable position=(0,0)
+	val mutable position=0
+	val mutable color=white
 	method distAwards=
 		match model with
 		|0->failwith "lol"
 		|1->failwith "lol2"
 		|2->failwith "lol3"
-		|3->failwith "lol4"
 		|_->failwith "Unrecognized power-up model (sth's wrong)"
+	method gained=false
+	method missed (x,y)=if y<0 then true else false
 	method pdraw_aux vert=
 		let rec pdraw_aaux gained missed vert=
 			match gained,missed with
 			|false,false->
 				delay 0.005;
 				drawer#erase white;
-				drawer#setColor red;
+				drawer#setColor color;
 				drawer#setVert vert;
 				drawer#draw;
 				synchronize();
-				pdraw_aaux false false (Array.map (fun (a,b)->(a,b-1)) vert)
+				pdraw_aaux (self#gained) (self#missed vert.(1)) (Array.map (fun (a,b)->(a,b-1)) vert)
 			|true,false->self#distAwards
 			|false,true->synchronize()
 			|true,true->failwith "This should never happen..."
 		in pdraw_aaux false false vert
-	method pdraw vert=
+	method pdraw=
 	(
+		Random.self_init();
+		let model=Random.int 2 in
 		match model with
-		|0->drawer#setVert vert;drawer#setColor red
-		|1->drawer#setVert vert;drawer#setColor green
-		|2->drawer#setVert vert;drawer#setColor black
-		|3->drawer#setVert vert;drawer#setColor blue
+		|0->drawer#setVert [|(position,340);(position,360);(position+10,360);(position+10,348);(position+15,348);(position+15,340)|];color<-red
+		|1->drawer#setVert [|(position,340);(position,360);(position+10,360);(position+10,354);(position+6,354);(position+6,352);(position+9,352);(position+9,348);(position+6,348);(position+6,346);(position+10,346);(position+10,340)|];color<-green
+		|2->drawer#setVert [|(position,340);(position+3,360);(position+7,360);(position+10,340);(position+7,340);(position+6,345);(position+4,345);(position+3,340)|];color<-black
 		|_->failwith "Unrecognized power-up model type (sth's wrong)"
 	);
 	create self#pdraw_aux vert;synchronize()
+	method setPosition p=position<-p
 end
 
 class board (background:background) (plate:plate) (ball:ball)=
@@ -229,7 +233,8 @@ object (self)
 					counter<-counter-1;
 					background#updatePoints 5;
 					let powerup=new powerups in
-						powerup#pdraw [|(100,100);(100,120);(120,100)|]
+						powerup#setPosition (fst h1.(0));
+						powerup#pdraw
 				)
 			)
 			else remove_aux t1 (h1::coltmp) t2 (h2::colortmp)
@@ -254,7 +259,7 @@ let rollTheBall()=
 	let rec delay_aux (x,y)=
 		match ball#isDownBelow with
 		|true->background#updateLifes (-);plate#reset;ball#reset;ball#changeState false
-		|false->delay 0.002;ball#move (x,y);ball#changeState true;delay_aux (ballCoords (x,y))
+		|false->delay 0.004;ball#move (x,y);ball#changeState true;delay_aux (ballCoords (x,y))
 	in delay_aux (ballCoords(1,1))
 (*let roll()=create rollTheBall()
 let rec restartBall f arg=try f arg with e->restartBall f arg*)
