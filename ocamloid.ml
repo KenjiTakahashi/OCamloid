@@ -1,5 +1,6 @@
 open Graphics
 open Thread
+open Printf
 
 class background=
 object (self)
@@ -37,6 +38,8 @@ object (self)
 	method updateLifes f=lifes<-f lifes 1;self#eraseLifes;self#drawLifes
 	method updatePoints p=points<-points+p;self#erasePoints;self#drawPoints
 	method updateLevel=level<-level+1;self#eraseLevel;self#drawLevel
+	method addAmmo=ammo<-ammo+10;self#eraseAmmo;self#drawAmmo
+	method removeAmmo=ammo<-ammo-1;self#eraseAmmo;self#drawAmmo
 end
 
 class plate=
@@ -60,7 +63,7 @@ object (self)
 		else if xPos>479-width then xPosition<-479-width
 		else xPosition<-xPos;
 		self#draw;synchronize()
-	method resize w=width<-w;self#draw;synchronize()
+	method resize f=width<-f width 20;self#draw;synchronize()
 	method getPosition=xPosition
 	method getWidth=width
 end
@@ -99,32 +102,35 @@ object (self)
 	method getRadius=radius
 end
 
-class powerups (p:int)=
+class powerups (p:int) (background:background) (plate:plate)=
 object (self)
 	val position=p
 	val mutable model=0
 	val mutable color=white
 	val mutable vert=[||]
-	method erase c=set_color c;fill_poly vert
+	method erase=set_color white;fill_poly vert
 	method draw=set_color color;fill_poly vert
 	method distAwards=
+		self#erase;
 		match model with
-		|0->failwith "lol"
-		|1->failwith "lol2"
-		|2->failwith "lol3"
+		|0->background#updateLifes (+)
+		|1->create (fun ()->plate#resize (+);delay 10.;plate#resize (-)) ();synchronize()
+		|2->background#addAmmo
 		|_->failwith "Unrecognized power-up model (sth's wrong)"
-	method gained=false
-	method missed (x,y)=if y<0 then true else false
+	method gained y=
+		let x=plate#getPosition in
+			if y<10&&(position+10>x||position<x+plate#getWidth) then true else false
+	method missed y=if y<0 then true else false
 	method pdraw_aux()=
 		let rec pdraw_aaux gained missed=
 			match gained,missed with
 			|false,false->
 				delay 0.005;
-				self#erase white;
+				self#erase;
 				vert<-Array.map (fun (a,b)->(a,b-1)) vert;
 				self#draw;
 				synchronize();
-				pdraw_aaux (self#gained) (self#missed vert.(1))
+				pdraw_aaux (self#gained (snd vert.(0))) (self#missed (snd vert.(1)))
 			|true,false->self#distAwards
 			|false,true->synchronize()
 			|true,true->failwith "This should never happen..."
@@ -225,7 +231,7 @@ object (self)
 					self#redrawOne chosen white;
 					counter<-counter-1;
 					background#updatePoints 5;
-					let powerup=new powerups (fst h1.(0)) in
+					let powerup=new powerups (fst h1.(0)) background plate in
 						powerup#pdraw
 				)
 			)
@@ -244,14 +250,15 @@ let ball=new ball
 let board=new board background plate ball
 let ballCoords (x,y)=
 	let rx=ref 0 and ry=ref 0 in
-		if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
-		if ball#yCollided||board#yCollided||((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then ry:=-y else ry:=y;
+		(if ball#xCollided||board#xCollided then (printf "1 ";rx:=-x) else (printf "2 ";rx:=x));
+		(if ball#yCollided||board#yCollided||((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then (printf "3 ";ry:=-y) else (printf "4 ";ry:=y));
 		(!rx,!ry)
 let rollTheBall()=
 	let rec delay_aux (x,y)=
 		match ball#isDownBelow with
-		|true->background#updateLifes (-);plate#reset;ball#reset;ball#changeState false
-		|false->delay 0.004;ball#move (x,y);ball#changeState true;delay_aux (ballCoords (x,y))
+		|true->printf "5 ";background#updateLifes (-);printf "6 ";plate#reset;printf "7 ";ball#reset;printf "8 ";ball#changeState false
+		(*|false->printf "9 ";(try delay 0.004 with e->printf "20 ");printf "10 ";ball#move (x,y);printf "11 ";ball#changeState true;printf "12 ";delay_aux (ballCoords (x,y))*)
+		|false->printf "9 ";delay 0.004;printf "10 ";ball#move (x,y);printf "11 ";ball#changeState true;printf "12 ";delay_aux (ballCoords (x,y))
 	in delay_aux (ballCoords(1,1))
 let keyboardPlateNavigation()=
 	let rec delay_aux i m=
@@ -277,7 +284,7 @@ let mousePlateNavigation()=
 	in delay_aux (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "Ocamloid 0.0.0.0.4";
+	set_window_title "OCamloid 0.0.0.0.7";
 	background#draw;
 	plate#draw;
 	ball#draw;
