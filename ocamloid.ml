@@ -6,7 +6,7 @@ class background=
 object (self)
 	val mutable lifes=5
 	val mutable points=0
-	val mutable ammo=5
+	val mutable ammo=500
 	val mutable level=1
 	val mutable leftColor=white
 	val mutable rightColor=red
@@ -23,9 +23,7 @@ object (self)
 		moveto 515 170;draw_string "Points gained";
 		draw_rect 490 120 130 50;
 		moveto 525 90;draw_string "Ammunition";
-		draw_rect 490 40 130 50;
-		moveto 525 500;draw_string "Debugging info"
-	method drawDInfo g=set_color red;fill_rect 525 470 100 20;moveto 525 480;set_color black;draw_string (string_of_int(g))
+		draw_rect 490 40 130 50
 	method eraseLifes=set_color rightColor;fill_rect 540 290 40 20
 	method erasePoints=set_color rightColor;fill_rect 500 130 80 20
 	method eraseAmmo=set_color rightColor;fill_rect 500 50 80 20
@@ -126,7 +124,8 @@ object (self)
 		let rec pdraw_aaux gained missed=
 			match gained,missed with
 			|false,false->
-				delay 0.005;
+				let rec delayer()=try delay 0.005 with e->delayer() in
+				delayer();
 				self#erase;
 				vert<-Array.map (fun (a,b)->(a,b-1)) vert;
 				self#draw;
@@ -156,6 +155,7 @@ object (self)
 	val mutable collection=[]
 	val mutable colors=[]
 	val mutable counter=0;
+	val mutable bulletFlying=false
 	method erase c=set_color c;fill_poly vert
 	method draw=set_color maincolor;fill_poly vert
 	method lottery i=Random.int i
@@ -245,6 +245,8 @@ object (self)
 	if counter=0 then (background#updateLevel;plate#reset;ball#reset;self#clearCollection;self#createCollection;self#drawCollection)
 	method redrawOne chosen c=maincolor<-c;vert<-chosen;self#draw
 	method getCollection=collection
+	method setBulletFlying s=bulletFlying<-s
+	method getBulletFlying=bulletFlying
 end
 
 class rifle (p:int) (board:board)=
@@ -260,7 +262,7 @@ object (self)
 			let rec hit_aux col=		
 				match col with
 				|hd::tl->let a=hd.(0) and b=hd.(2) in
-					if (x>=fst a&&(x+3)<=fst b&&y>=snd b) then (board#removeFromCollection hd;true) else hit_aux tl
+					if (x>=fst a&&(x+3)<=fst b&&y>=snd b) then (board#removeFromCollection hd;board#setBulletFlying false;true) else hit_aux tl
 				|_->false
 			in hit_aux board#getCollection
 		)
@@ -270,9 +272,8 @@ object (self)
 		let rec flight_aux hit missed=
 			match hit,missed with
 			|false,false->
-				printf "de";
-				delay 0.004;
-				printf "bug";
+				let rec delayer()=try delay 0.003 with e->delayer() in
+				delayer();
 				self#erase;
 				vert<-Array.map (fun (a,b)->(a,b+1)) vert;
 				self#draw;
@@ -295,13 +296,13 @@ let ballCoords (x,y)=
 	let rx=ref 0 and ry=ref 0 in
 		if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
 		if ball#yCollided||board#yCollided||((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then ry:=-y else ry:=y;
-		(*printf "%i " !ry;*)
 		(!rx,!ry)
+let rec delayer()=try delay 0.004 with e->delayer()
 let rollTheBall()=
 	let rec delay_aux (x,y)=
 		match ball#isDownBelow with
 		|true->background#updateLifes (-);plate#reset;ball#reset;ball#changeState false
-		|false->ball#move (x,y);ball#changeState true;(try delay 0.004 with e->printf "error");delay_aux (ballCoords (x,y))
+		|false->ball#move (x,y);ball#changeState true;delayer();delay_aux (ballCoords (x,y))
 	in delay_aux (ballCoords(1,1))
 let keyboardPlateNavigation()=
 	let rec delay_aux i m=
@@ -327,16 +328,20 @@ let mousePlateNavigation()=
 			delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,true,true->
 		(
-			if background#getAmmo!=0 then
+			if (background#getAmmo!=0&&board#getBulletFlying=false) then
+			(
+				background#removeAmmo;
+				board#setBulletFlying true;
 				let lrifle=new rifle plate#getPosition board in lrifle#shot;
 				let rrifle=new rifle (plate#getPosition+plate#getWidth) board in rrifle#shot
+			)
 		);
 		delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,_,true->plate#mouseMove i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 	in delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "OCamloid 0.0.0.0.8";
+	set_window_title "OCamloid 0.0.0.0.9";
 	background#draw;
 	plate#draw;
 	ball#draw;
