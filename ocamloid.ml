@@ -76,17 +76,17 @@ object (self)
 	val mutable color=blue
 	val mutable state=false
 	method draw=set_color color;fill_circle xPosition yPosition radius
-	method erase c=set_color c;fill_circle xPosition yPosition radius
-	method reset=self#erase white;xPosition<-210;yPosition<-15;radius<-5;self#draw;synchronize()
-	method move (x,y)=self#erase white;xPosition<-(xPosition+x);yPosition<-(yPosition+y);self#draw;synchronize()
+	method erase=set_color white;fill_circle xPosition yPosition radius
+	method reset=self#erase;xPosition<-210;yPosition<-15;radius<-5;self#draw;synchronize()
+	method move (x,y)=self#erase;xPosition<-(xPosition+x);yPosition<-(yPosition+y);self#draw;synchronize()
 	method onPlateMouseMove x=
-		self#erase white;
+		self#erase;
 		let xPos=xPosition in
-			xPosition<-x;
+			xPosition<-(x-30);
 			if self#xCollided then xPosition<-xPos;
 			self#draw;synchronize()
 	method onPlateKeyboardMove x=
-		self#erase white;
+		self#erase;
 		let xPos=xPosition in
 			xPosition<-(xPosition+x);
 			if self#xCollided then xPosition<-xPos;
@@ -100,6 +100,14 @@ object (self)
 	method getXPosition=xPosition
 	method getYPosition=yPosition
 	method getRadius=radius
+end
+
+class rifle (p:int)=
+object (self)
+	val mutable vert=[||]
+	val mutable position=p
+	method erase=set_color white;fill_poly vert
+	method draw=set_color black;fill_poly vert
 end
 
 class powerups (p:int) (background:background) (plate:plate)=
@@ -119,7 +127,7 @@ object (self)
 		|_->failwith "Unrecognized power-up model (sth's wrong)"
 	method gained y=
 		let x=plate#getPosition in
-			if y<10&&(position+10>x||position<x+plate#getWidth) then true else false
+			if y<10&&position+10>x&&position<x+plate#getWidth then true else false
 	method missed y=if y<0 then true else false
 	method pdraw_aux()=
 		let rec pdraw_aaux gained missed=
@@ -192,7 +200,7 @@ object (self)
 			let rec collided_aux col=
 				match col with
 				|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
-					if (((x+r)=fst a||(x-r)=fst b)&&y<=snd a&&y>=snd b) then (self#removeFromCollection hd;true) else collided_aux tl
+					if ((x+r)>=fst a&&(x-r)<=fst b&&y<=snd a&&y>=snd b) then (self#removeFromCollection hd;true) else collided_aux tl
 				|_->false
 			in collided_aux collection
 	method yCollided=
@@ -200,7 +208,7 @@ object (self)
 			let rec collided_aux col=
 				match col with
 				|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
-					if (((y-r)=snd a||(y+r)=snd b)&&x>=fst a&&x<=fst b) then (self#removeFromCollection hd;true) else collided_aux tl
+					if ((y-r)<=snd a&&(y+r)>=snd b&&x>=fst a&&x<=fst b) then (self#removeFromCollection hd;true) else collided_aux tl
 				|_->false
 			in collided_aux collection
 	method removeFromCollection chosen=
@@ -234,6 +242,8 @@ object (self)
 					let powerup=new powerups (fst h1.(0)) background plate in
 						powerup#pdraw
 				)
+				else if h2=magenta then
+					self#redrawOne chosen magenta
 			)
 			else remove_aux t1 (h1::coltmp) t2 (h2::colortmp)
 			|_,_->failwith "Sth's wrong (index out of bounds)" (** To sie raczej nie powinno wydarzyc *)
@@ -250,15 +260,15 @@ let ball=new ball
 let board=new board background plate ball
 let ballCoords (x,y)=
 	let rx=ref 0 and ry=ref 0 in
-		(if ball#xCollided||board#xCollided then (printf "1 ";rx:=-x) else (printf "2 ";rx:=x));
-		(if ball#yCollided||board#yCollided||((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then (printf "3 ";ry:=-y) else (printf "4 ";ry:=y));
+		if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
+		if ball#yCollided||board#yCollided||((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then ry:=-y else ry:=y;
+		(*printf "%i " !ry;*)
 		(!rx,!ry)
 let rollTheBall()=
 	let rec delay_aux (x,y)=
 		match ball#isDownBelow with
-		|true->printf "5 ";background#updateLifes (-);printf "6 ";plate#reset;printf "7 ";ball#reset;printf "8 ";ball#changeState false
-		(*|false->printf "9 ";(try delay 0.004 with e->printf "20 ");printf "10 ";ball#move (x,y);printf "11 ";ball#changeState true;printf "12 ";delay_aux (ballCoords (x,y))*)
-		|false->printf "9 ";delay 0.004;printf "10 ";ball#move (x,y);printf "11 ";ball#changeState true;printf "12 ";delay_aux (ballCoords (x,y))
+		|true->background#updateLifes (-);plate#reset;ball#reset;ball#changeState false
+		|false->ball#move (x,y);ball#changeState true;(try delay 0.004 with e->printf "error");delay_aux (ballCoords (x,y))
 	in delay_aux (ballCoords(1,1))
 let keyboardPlateNavigation()=
 	let rec delay_aux i m=
@@ -274,21 +284,23 @@ let keyboardPlateNavigation()=
 		|_,_->delay_aux (wait_next_event [Key_pressed]) (ball#isMoving)
 	in delay_aux (wait_next_event [Key_pressed]) (ball#isMoving)
 let mousePlateNavigation()=
-	let rec delay_aux i=
-		match i.key,i.button with
-		|'\027',_->close_graph()
-		|_,true->create rollTheBall();delay_aux (wait_next_event [Mouse_motion;Key_pressed;Button_down])
-		|_,_->plate#mouseMove i.mouse_x;
-			if ball#onPlate plate#getPosition plate#getWidth then ball#onPlateMouseMove i.mouse_x;
-			delay_aux (wait_next_event [Mouse_motion;Key_pressed;Button_down])
-	in delay_aux (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+	let rec delay_aux m i=
+		match i.key,i.button,m with
+		|'\027',_,_->close_graph()
+		|_,true,false->create rollTheBall();delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+		|_,false,false->
+			plate#mouseMove i.mouse_x;
+			ball#onPlateMouseMove i.mouse_x;
+			delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+		|_,_,true->plate#mouseMove i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+	in delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "OCamloid 0.0.0.0.7";
+	set_window_title "OCamloid 0.0.0.0.8";
 	background#draw;
 	plate#draw;
 	ball#draw;
 	board#createCollection;
 	board#drawCollection;
 	auto_synchronize false;
-	keyboardPlateNavigation()
+	mousePlateNavigation()
