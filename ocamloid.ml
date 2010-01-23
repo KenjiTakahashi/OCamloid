@@ -6,7 +6,7 @@ class background=
 object (self)
 	val mutable lifes=5
 	val mutable points=0
-	val mutable ammo=0
+	val mutable ammo=5
 	val mutable level=1
 	val mutable leftColor=white
 	val mutable rightColor=red
@@ -40,6 +40,7 @@ object (self)
 	method updateLevel=level<-level+1;self#eraseLevel;self#drawLevel
 	method addAmmo=ammo<-ammo+10;self#eraseAmmo;self#drawAmmo
 	method removeAmmo=ammo<-ammo-1;self#eraseAmmo;self#drawAmmo
+	method getAmmo=ammo
 end
 
 class plate=
@@ -100,14 +101,6 @@ object (self)
 	method getXPosition=xPosition
 	method getYPosition=yPosition
 	method getRadius=radius
-end
-
-class rifle (p:int)=
-object (self)
-	val mutable vert=[||]
-	val mutable position=p
-	method erase=set_color white;fill_poly vert
-	method draw=set_color black;fill_poly vert
 end
 
 class powerups (p:int) (background:background) (plate:plate)=
@@ -216,42 +209,82 @@ object (self)
 		let rec remove_aux col coltmp color colortmp=
 			match col,color with
 			|h1::t1,h2::t2->
-			if h1=chosen then
-			(
-				if h2=green then
+				if h1=chosen then
 				(
-					collection<-(List.rev_append coltmp t1);
-					colors<-(List.rev_append colortmp t2);
-					self#redrawOne chosen white;
-					counter<-counter-1;
-					background#updatePoints 10
+					if h2=green then
+					(
+						collection<-(List.rev_append coltmp t1);
+						colors<-(List.rev_append colortmp t2);
+						self#redrawOne chosen white;
+						counter<-counter-1;
+						background#updatePoints 10
+					)
+					else if h2=red then
+					(
+						colors<-(List.rev_append (green::colortmp) t2);
+						self#redrawOne chosen green;
+						background#updatePoints 10
+					)
+					else if h2=blue then
+					(
+						collection<-(List.rev_append coltmp t1);
+						colors<-(List.rev_append colortmp t2);
+						self#redrawOne chosen white;
+						counter<-counter-1;
+						background#updatePoints 5;
+						let powerup=new powerups (fst h1.(0)) background plate in
+							powerup#pdraw
+					)
+					else if h2=magenta then
+						self#redrawOne chosen magenta
 				)
-				else if h2=red then
-				(
-					colors<-(List.rev_append (green::colortmp) t2);
-					self#redrawOne chosen green;
-					background#updatePoints 10
-				)
-				else if h2=blue then
-				(
-					collection<-(List.rev_append coltmp t1);
-					colors<-(List.rev_append colortmp t2);
-					self#redrawOne chosen white;
-					counter<-counter-1;
-					background#updatePoints 5;
-					let powerup=new powerups (fst h1.(0)) background plate in
-						powerup#pdraw
-				)
-				else if h2=magenta then
-					self#redrawOne chosen magenta
-			)
-			else remove_aux t1 (h1::coltmp) t2 (h2::colortmp)
-			|_,_->failwith "Sth's wrong (index out of bounds)" (** To sie raczej nie powinno wydarzyc *)
+				else remove_aux t1 (h1::coltmp) t2 (h2::colortmp)
+			|_,_->failwith "Sth's wrong (index out of bounds)" (** To sie nie powinno wydarzyc *)
 		in remove_aux collection [] colors []
 	);
 	if counter=0 then (background#updateLevel;plate#reset;ball#reset;self#clearCollection;self#createCollection;self#drawCollection)
-	else background#drawDInfo counter
 	method redrawOne chosen c=maincolor<-c;vert<-chosen;self#draw
+	method getCollection=collection
+end
+
+class rifle (p:int) (board:board)=
+object (self)
+	val mutable vert=[||]
+	val mutable position=0
+	method erase=set_color white;fill_poly vert
+	method draw=set_color black;fill_poly vert
+	method setPosition x=position<-x
+	method hit (x,y)=
+		if y>=360 then
+		(
+			let rec hit_aux col=		
+				match col with
+				|hd::tl->let a=hd.(0) and b=hd.(2) in
+					if (x>=fst a&&(x+3)<=fst b&&y>=snd b) then (board#removeFromCollection hd;true) else hit_aux tl
+				|_->false
+			in hit_aux board#getCollection
+		)
+		else false
+	method missed y=if y>size_y() then true else false
+	method flightOfTheBullet()=
+		let rec flight_aux hit missed=
+			match hit,missed with
+			|false,false->
+				printf "de";
+				delay 0.004;
+				printf "bug";
+				self#erase;
+				vert<-Array.map (fun (a,b)->(a,b+1)) vert;
+				self#draw;
+				synchronize();
+				flight_aux (self#hit (vert.(1))) (self#missed (snd vert.(1)))
+			|_,_->self#erase;synchronize()
+		in flight_aux false false
+	method shot=
+		position<-p;
+		vert<-[|(position,10);(position,16);(position+3,16);(position+1,10)|];
+		create self#flightOfTheBullet();
+		synchronize()
 end
 
 let background=new background
@@ -292,6 +325,13 @@ let mousePlateNavigation()=
 			plate#mouseMove i.mouse_x;
 			ball#onPlateMouseMove i.mouse_x;
 			delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+		|_,true,true->
+		(
+			if background#getAmmo!=0 then
+				let lrifle=new rifle plate#getPosition board in lrifle#shot;
+				let rrifle=new rifle (plate#getPosition+plate#getWidth) board in rrifle#shot
+		);
+		delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,_,true->plate#mouseMove i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 	in delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 let main=
