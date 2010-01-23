@@ -1,6 +1,45 @@
 open Graphics
 open Thread
-open Printf
+
+class menu=
+object (self)
+	val mutable pause=true
+	val mutable opt=(-1)
+	val normalColor=rgb 150 150 150
+	val highlightColor=rgb 200 200 200
+	method drawLeft=set_color normalColor;fill_rect 480 0 (size_x()) (size_y())
+	method drawTop=set_color normalColor;fill_rect 0 360 480 (size_y())
+	method drawButtons=
+		set_color black;
+		if pause then (moveto 537 339;draw_string "Resume");
+		moveto 515 310;draw_string "Start New Game";
+		moveto 522 281;draw_string "Instructions";
+		moveto 545 252;draw_string "Exit"
+	method getButton x y=
+		if (x>=480&&x<=(size_y())) then
+		(
+			if (y>=242&&y<=266) then 0
+			else if (y>=271&&y<=300) then 1
+			else if (y>=300&&y<=329) then 2
+			else if (y>=329&&y<=358&&pause) then 3
+			else (-1)
+		)
+		else (-1)
+	method highlight x y=
+		let i=self#getButton x y in
+		(
+			match i with
+			|0->self#drawLeft;set_color highlightColor;fill_rect 480 244 160 28;self#drawButtons
+			|1->self#drawLeft;set_color highlightColor;fill_rect 480 273 160 28;self#drawButtons
+			|2->self#drawLeft;set_color highlightColor;fill_rect 480 302 160 28;self#drawButtons
+			|3->self#drawLeft;set_color highlightColor;fill_rect 480 331 160 28;self#drawButtons
+			|_->if (opt!=(-1)) then self#drawLeft;self#drawButtons
+		);
+		opt<-i;
+		synchronize()
+	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons
+	method getOpt=opt
+end
 
 class background=
 object (self)
@@ -8,10 +47,9 @@ object (self)
 	val mutable points=0
 	val mutable ammo=500
 	val mutable level=1
-	val mutable leftColor=white
-	val mutable rightColor=red
-	val mutable borderColor=black
-	method getLeftColor=leftColor
+	val leftColor=white
+	val rightColor=red
+	val borderColor=black
 	method drawLeft=set_color leftColor;fill_rect 0 0 480 (size_y())
 	method drawRight=set_color rightColor;fill_rect 480 0 (size_x()) (size_y())
 	method drawBorders=
@@ -38,7 +76,7 @@ object (self)
 	method updateLevel=level<-level+1;self#eraseLevel;self#drawLevel
 	method addAmmo=ammo<-ammo+10;self#eraseAmmo;self#drawAmmo
 	method removeAmmo=ammo<-ammo-1;self#eraseAmmo;self#drawAmmo
-	method getAmmo=ammo
+	method ammoState=if ammo!=0 then true else false
 end
 
 class plate=
@@ -49,18 +87,11 @@ object (self)
 	method draw=set_color color;fill_rect xPosition 0 width 10
 	method erase c=set_color c;fill_rect xPosition 0 width 10
 	method reset=self#erase white;width<-60;xPosition<-180;color<-green;self#draw;synchronize()
-	method mouseMove x=
+	method move x=
 		self#erase white;
 		if x<60 then xPosition<-0
 		else if x>529-width then xPosition<-479-width
 		else xPosition<-(x-60);
-		self#draw;synchronize()
-	method keyboardMove x=
-		self#erase white;
-		let xPos=xPosition+x in
-		if xPos<0 then xPosition<-0
-		else if xPos>479-width then xPosition<-479-width
-		else xPosition<-xPos;
 		self#draw;synchronize()
 	method resize f=width<-f width 20;self#draw;synchronize()
 	method getPosition=xPosition
@@ -78,16 +109,10 @@ object (self)
 	method erase=set_color white;fill_circle xPosition yPosition radius
 	method reset=self#erase;xPosition<-210;yPosition<-15;radius<-5;self#draw;synchronize()
 	method move (x,y)=self#erase;xPosition<-(xPosition+x);yPosition<-(yPosition+y);self#draw;synchronize()
-	method onPlateMouseMove x=
+	method onPlateMove x=
 		self#erase;
 		let xPos=xPosition in
 			xPosition<-(x-30);
-			if self#xCollided then xPosition<-xPos;
-			self#draw;synchronize()
-	method onPlateKeyboardMove x=
-		self#erase;
-		let xPos=xPosition in
-			xPosition<-(xPosition+x);
 			if self#xCollided then xPosition<-xPos;
 			self#draw;synchronize()
 	method onPlate x w=if xPosition>=x&&xPosition-1<=(x+w)&&yPosition-radius=10 then true else false
@@ -262,7 +287,7 @@ object (self)
 			let rec hit_aux col=		
 				match col with
 				|hd::tl->let a=hd.(0) and b=hd.(2) in
-					if (x>=fst a&&(x+3)<=fst b&&y>=snd b) then (board#removeFromCollection hd;board#setBulletFlying false;true) else hit_aux tl
+					if (x>=fst a&&x<=fst b&&y>=snd b) then (board#removeFromCollection hd;board#setBulletFlying false;true) else hit_aux tl
 				|_->false
 			in hit_aux board#getCollection
 		)
@@ -292,6 +317,7 @@ let background=new background
 let plate=new plate
 let ball=new ball
 let board=new board background plate ball
+let menu=new menu
 let ballCoords (x,y)=
 	let rx=ref 0 and ry=ref 0 in
 		if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
@@ -304,31 +330,18 @@ let rollTheBall()=
 		|true->background#updateLifes (-);plate#reset;ball#reset;ball#changeState false
 		|false->ball#move (x,y);ball#changeState true;delayer();delay_aux (ballCoords (x,y))
 	in delay_aux (ballCoords(1,1))
-let keyboardPlateNavigation()=
-	let rec delay_aux i m=
-		match i.key,m with
-		|'\027',_->close_graph()
-		|'z',_->if ball#onPlate plate#getPosition plate#getWidth then ball#onPlateKeyboardMove (-10);
-			plate#keyboardMove (-10);
-			delay_aux (wait_next_event [Key_pressed]) (ball#isMoving)
-		|'c',_->if ball#onPlate plate#getPosition plate#getWidth then ball#onPlateKeyboardMove 10;
-			plate#keyboardMove 10;
-			delay_aux (wait_next_event [Key_pressed]) (ball#isMoving)
-		|' ',false->create rollTheBall();delay_aux (wait_next_event [Key_pressed]) (ball#isMoving)
-		|_,_->delay_aux (wait_next_event [Key_pressed]) (ball#isMoving)
-	in delay_aux (wait_next_event [Key_pressed]) (ball#isMoving)
-let mousePlateNavigation()=
+let plateNavigation()=
 	let rec delay_aux m i=
 		match i.key,i.button,m with
-		|'\027',_,_->close_graph()
+		|'\027',_,_->menu#drawMenu;synchronize()
 		|_,true,false->create rollTheBall();delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,false,false->
-			plate#mouseMove i.mouse_x;
-			ball#onPlateMouseMove i.mouse_x;
+			plate#move i.mouse_x;
+			ball#onPlateMove i.mouse_x;
 			delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,true,true->
 		(
-			if (background#getAmmo!=0&&board#getBulletFlying=false) then
+			if (background#ammoState&&board#getBulletFlying=false) then
 			(
 				background#removeAmmo;
 				board#setBulletFlying true;
@@ -337,15 +350,28 @@ let mousePlateNavigation()=
 			)
 		);
 		delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
-		|_,_,true->plate#mouseMove i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+		|_,_,true->plate#move i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 	in delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+let menuNavigation()=
+	let rec navi_aux i=
+		match i.button with
+		|true->
+			let opt=menu#getOpt in
+			(
+				match opt with
+				|0->synchronize()
+				|1->synchronize()
+				|2->background#draw;board#createCollection;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
+				|3->background#draw;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
+				|_->navi_aux (wait_next_event [Mouse_motion;Button_down])
+			)
+		|false->menu#highlight i.mouse_x i.mouse_y;navi_aux (wait_next_event [Mouse_motion;Button_down])
+	in navi_aux (wait_next_event [Mouse_motion;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "OCamloid 0.0.0.0.9";
-	background#draw;
+	set_window_title "OCamloid 0.0.0.3";
 	plate#draw;
 	ball#draw;
-	board#createCollection;
-	board#drawCollection;
+	menu#drawMenu;
 	auto_synchronize false;
-	mousePlateNavigation()
+	menuNavigation()
