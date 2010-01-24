@@ -1,9 +1,30 @@
 open Graphics
 open Thread
 
+(** Funkcja odpowiedzialna za blokowanie obiektow w trybie pauzy *)
+let locker=ref false
+
+class logo=
+object (self)
+	val mutable v=[||]
+	method color=
+		Random.self_init();
+		let i=Random.int 3 in
+			match i with
+			|0->blue
+			|1->red
+			|2->magenta
+			|_->green
+	method draw c v=set_color c;fill_poly v
+	method drawVertic j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a,b+10)) v done
+	method drawHorizon j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a+20,b)) v done
+	method drawLogo=()
+end
+
 class menu=
 object (self)
-	val mutable pause=true
+	inherit logo as logo
+	val mutable pause=false
 	val mutable opt=(-1)
 	val normalColor=rgb 150 150 150
 	val highlightColor=rgb 200 200 200
@@ -37,8 +58,9 @@ object (self)
 		);
 		opt<-i;
 		synchronize()
-	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons
+	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons;logo#drawLogo
 	method getOpt=opt
+	method setPause=pause<-true
 end
 
 class background=
@@ -85,15 +107,23 @@ object (self)
 	val mutable xPosition=180
 	val mutable color=green
 	method draw=set_color color;fill_rect xPosition 0 width 10
-	method erase c=set_color c;fill_rect xPosition 0 width 10
-	method reset=self#erase white;width<-60;xPosition<-180;color<-green;self#draw;synchronize()
+	method erase=set_color white;fill_rect xPosition 0 width 10
+	method reset=self#erase;width<-60;xPosition<-180;color<-green;self#draw;synchronize()
+	(** Przesuniecie paletki na pozycje x. *)
 	method move x=
-		self#erase white;
-		if x<60 then xPosition<-0
-		else if x>529-width then xPosition<-479-width
-		else xPosition<-(x-60);
-		self#draw;synchronize()
-	method resize f=width<-f width 20;self#draw;synchronize()
+		self#erase; (** Usuwamy paletke na starej pozycji. *)
+		if x<60 then xPosition<-0 (** Jesli pozycja wypada poza lewa krawedzia ekranu, to ustawiamy paletke na pozycji x=0 *)
+		else if x>529-width then xPosition<-479-width (** J.w. z prawej strony. *)
+		else xPosition<-(x-60); (** Ustawiamy paletke na podanej pozycji *)
+		self#draw;synchronize() (** Rysujemy paletke w nowym miejscu i synchronizujemy obraz *)
+	(** Zmiana rozmiaru paletki (if dla zabezpieczenia przed "ucieciem" kawalka badz "wyjechaniem" poza obszar). *)
+	method resize f=
+		if (f width 20)>=60 then
+		(
+			let nwidth=f width 20 in
+				if (xPosition+nwidth>480) then xPosition<-480-nwidth;
+				self#erase;width<-nwidth;self#draw;synchronize()
+		)
 	method getPosition=xPosition
 	method getWidth=width
 end
@@ -150,6 +180,7 @@ object (self)
 			match gained,missed with
 			|false,false->
 				let rec delayer()=try delay 0.005 with e->delayer() in
+				while !locker do delay 0.001 done;
 				delayer();
 				self#erase;
 				vert<-Array.map (fun (a,b)->(a,b-1)) vert;
@@ -180,7 +211,8 @@ object (self)
 	val mutable collection=[]
 	val mutable colors=[]
 	val mutable counter=0;
-	val mutable bulletFlying=false
+	val mutable lBulletFlying=false
+	val mutable rBulletFlying=false
 	method erase c=set_color c;fill_poly vert
 	method draw=set_color maincolor;fill_poly vert
 	method lottery i=Random.int i
@@ -215,20 +247,28 @@ object (self)
 		in draw_aux collection colors
 	method xCollided=
 		let x=ball#getXPosition and y=ball#getYPosition and r=ball#getRadius in
-			let rec collided_aux col=
-				match col with
-				|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
-					if ((x+r)>=fst a&&(x-r)<=fst b&&y<=snd a&&y>=snd b) then (self#removeFromCollection hd;true) else collided_aux tl
-				|_->false
-			in collided_aux collection
+			if y>=350 then
+			(
+				let rec collided_aux col=
+					match col with
+					|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
+						if ((x+r)>=fst a&&(x-r)<=fst b&&y<=snd a&&y>=snd b) then (self#removeFromCollection hd;true) else collided_aux tl
+					|_->false
+				in collided_aux collection
+			)
+			else false
 	method yCollided=
 		let x=ball#getXPosition and y=ball#getYPosition and r=ball#getRadius in
-			let rec collided_aux col=
-				match col with
-				|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
-					if ((y-r)<=snd a&&(y+r)>=snd b&&x>=fst a&&x<=fst b) then (self#removeFromCollection hd;true) else collided_aux tl
-				|_->false
-			in collided_aux collection
+			if y>=350 then
+			(
+				let rec collided_aux col=
+					match col with
+					|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
+						if ((y-r)<=snd a&&(y+r)>=snd b&&x>=fst a&&x<=fst b) then (self#removeFromCollection hd;true) else collided_aux tl
+					|_->false
+				in collided_aux collection
+			)
+			else false
 	method removeFromCollection chosen=
 	(
 		let rec remove_aux col coltmp color colortmp=
@@ -270,14 +310,17 @@ object (self)
 	if counter=0 then (background#updateLevel;plate#reset;ball#reset;self#clearCollection;self#createCollection;self#drawCollection)
 	method redrawOne chosen c=maincolor<-c;vert<-chosen;self#draw
 	method getCollection=collection
-	method setBulletFlying s=bulletFlying<-s
-	method getBulletFlying=bulletFlying
+	method setLBulletFlying s=lBulletFlying<-s
+	method getLBulletFlying=lBulletFlying
+	method setRBulletFlying s=rBulletFlying<-s
+	method getRBulletFlying=rBulletFlying
 end
 
 class rifle (p:int) (board:board)=
 object (self)
 	val mutable vert=[||]
 	val mutable position=0
+	val mutable hits=false
 	method erase=set_color white;fill_poly vert
 	method draw=set_color black;fill_poly vert
 	method setPosition x=position<-x
@@ -287,53 +330,60 @@ object (self)
 			let rec hit_aux col=		
 				match col with
 				|hd::tl->let a=hd.(0) and b=hd.(2) in
-					if (x>=fst a&&x<=fst b&&y>=snd b) then (board#removeFromCollection hd;board#setBulletFlying false;true) else hit_aux tl
+					if (x>=fst a&&x<=fst b&&y>=snd b) then (board#removeFromCollection hd;true) else hit_aux tl
 				|_->false
 			in hit_aux board#getCollection
 		)
 		else false
 	method missed y=if y>size_y() then true else false
-	method flightOfTheBullet()=
+	method flightOfTheBullet s=
 		let rec flight_aux hit missed=
 			match hit,missed with
 			|false,false->
 				let rec delayer()=try delay 0.003 with e->delayer() in
+				while !locker do delay 0.001 done;
 				delayer();
 				self#erase;
 				vert<-Array.map (fun (a,b)->(a,b+1)) vert;
 				self#draw;
 				synchronize();
 				flight_aux (self#hit (vert.(1))) (self#missed (snd vert.(1)))
-			|_,_->self#erase;synchronize()
+			|_,_->self#erase;if s=0 then board#setLBulletFlying false else board#setRBulletFlying false;synchronize()
 		in flight_aux false false
-	method shot=
+	method shot s=
 		position<-p;
 		vert<-[|(position,10);(position,16);(position+3,16);(position+1,10)|];
-		create self#flightOfTheBullet();
+		create self#flightOfTheBullet s;
 		synchronize()
 end
 
+(** Nowa instancja tla (rowniez info dot. punktacji, itp.). *)
 let background=new background
+(** Nowa instancja paletki *)
 let plate=new plate
+(** Nowa instancja pilki *)
 let ball=new ball
+(** Nowa instancja planszy, przekazujemy do niej utworzone wczesniej tlo, paletke i pilke *)
 let board=new board background plate ball
+(** Nowa instancja menu *)
 let menu=new menu
-let ballCoords (x,y)=
-	let rx=ref 0 and ry=ref 0 in
+let ballCoords (x,y,d)=
+	let rx=ref 0 and ry=ref 0 and rd=ref 0.004 in
 		if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
-		if ball#yCollided||board#yCollided||((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then ry:=-y else ry:=y;
-		(!rx,!ry)
-let rec delayer()=try delay 0.004 with e->delayer()
+		if ((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then ry:=-y
+		else if ball#yCollided||board#yCollided then ry:=-y else ry:=y;
+		(!rx,!ry,!rd)
+let rec delayer f=try delay f with e->delayer f
 let rollTheBall()=
-	let rec delay_aux (x,y)=
+	let rec delay_aux (x,y,d)=
 		match ball#isDownBelow with
 		|true->background#updateLifes (-);plate#reset;ball#reset;ball#changeState false
-		|false->ball#move (x,y);ball#changeState true;delayer();delay_aux (ballCoords (x,y))
-	in delay_aux (ballCoords(1,1))
+		|false->while !locker do delay 0.001 done;ball#move (x,y);ball#changeState true;delayer d;delay_aux (ballCoords (x,y,d))
+	in delay_aux (ballCoords(1,1,0.004))
 let plateNavigation()=
 	let rec delay_aux m i=
 		match i.key,i.button,m with
-		|'\027',_,_->menu#drawMenu;synchronize()
+		|'\027',_,_->locker:=true;menu#drawMenu;synchronize()
 		|_,true,false->create rollTheBall();delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,false,false->
 			plate#move i.mouse_x;
@@ -341,12 +391,13 @@ let plateNavigation()=
 			delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,true,true->
 		(
-			if (background#ammoState&&board#getBulletFlying=false) then
+			if (background#ammoState&&board#getLBulletFlying=false&&board#getRBulletFlying=false) then
 			(
 				background#removeAmmo;
-				board#setBulletFlying true;
-				let lrifle=new rifle plate#getPosition board in lrifle#shot;
-				let rrifle=new rifle (plate#getPosition+plate#getWidth) board in rrifle#shot
+				board#setLBulletFlying true;
+				board#setRBulletFlying true;
+				let lrifle=new rifle plate#getPosition board in lrifle#shot 0;
+				let rrifle=new rifle (plate#getPosition+plate#getWidth-3) board in rrifle#shot 1
 			)
 		);
 		delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
@@ -361,15 +412,15 @@ let menuNavigation()=
 				match opt with
 				|0->synchronize()
 				|1->synchronize()
-				|2->background#draw;board#createCollection;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
-				|3->background#draw;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
+				|2->locker:=false;ball#reset;ball#changeState false;menu#setPause;background#draw;board#createCollection;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
+				|3->locker:=false;background#draw;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
 				|_->navi_aux (wait_next_event [Mouse_motion;Button_down])
 			)
 		|false->menu#highlight i.mouse_x i.mouse_y;navi_aux (wait_next_event [Mouse_motion;Button_down])
 	in navi_aux (wait_next_event [Mouse_motion;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "OCamloid 0.0.0.3";
+	set_window_title "OCamloid 0.0.0.4";
 	plate#draw;
 	ball#draw;
 	menu#drawMenu;
