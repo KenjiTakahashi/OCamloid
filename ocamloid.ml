@@ -4,12 +4,38 @@ open Thread
 (** Funkcja odpowiedzialna za blokowanie obiektow w trybie pauzy *)
 let locker=ref false
 
+class instructions=
+object (self)
+	val color=rgb 150 150 150
+	method drawBackground=set_color color;fill_rect 0 360 (size_x()) (size_y())
+	method drawText=
+		set_color black;
+		moveto 20 611;draw_string "Controls:";
+		moveto 20 592;draw_string "Mouse button - release the ball or shot the gun.";
+		moveto 20 573;draw_string "Mouse movement - control the plate.";
+		moveto 0 569;lineto (size_x()) 569;
+		moveto 20 554;draw_string "Blocks types:";
+		set_color green;fill_rect 20 526 40 20;set_color black;moveto 70 530;draw_string "- normal block, disappears when hit (+10 points).";
+		set_color red;fill_rect 20 496 40 20;set_color black;moveto 70 500;draw_string "- 2xhit block, turns to green when hit (+10 points).";
+		set_color magenta;fill_rect 20 466 40 20;set_color black;moveto 70 470;draw_string "- Permanent block, impossible to destroy (no points).";
+		set_color blue;fill_rect 20 436 40 20;set_color black;moveto 70 440;draw_string "- Bonus block, drops bonus when hit (+5 points).";
+		moveto 0 432;lineto (size_x()) 432;
+		moveto 20 418;draw_string "Bonuses:";
+		
+		(**
+		|2->vert<-[|(position,340);(position+3,360);(position+7,360);(position+10,340);(position+7,340);(position+6,345);(position+4,345);(position+3,340)|];color<-black*)
+		
+		set_color red;fill_poly [|(20,390);(20,410);(30,410);(30,398);(35,398);(35,390)|];set_color black;moveto 45 395;draw_string "- Lifes +1.";
+		set_color green;fill_poly [|(130,390);(130,410);(140,410);(140,404);(136,404);(136,402);(139,402);(139,398);(136,398);(136,396);(140,396);(140,390)|];set_color black;moveto 150 395;draw_string "- Enlarge plate.";
+		set_color black;fill_poly [|(260,390);(263,410);(267,410);(270,390);(267,390);(266,395);(264,395);(263,390)|];set_color black;moveto 280 395;draw_string "- Ammo +1."
+end
+
 class logo=
 object (self)
 	val mutable v=[||]
 	method color=
 		Random.self_init();
-		let i=Random.int 3 in
+		let i=Random.int 4 in
 			match i with
 			|0->blue
 			|1->red
@@ -18,18 +44,68 @@ object (self)
 	method draw c v=set_color c;fill_poly v
 	method drawVertic j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a,b+10)) v done
 	method drawHorizon j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a+20,b)) v done
-	method drawLogo=()
+	(** Rysowanie loga i numeru wersji *)
+	method drawLogo=
+		(** Logo *)
+		v<-[|(50,540);(50,550);(70,550);(70,540)|];self#drawVertic 6;
+		v<-[|(60,530);(60,540);(80,540);(80,530)|];self#drawHorizon 2;
+		v<-[|(90,540);(90,550);(110,550);(110,540)|];self#drawVertic 6;
+		v<-[|(60,600);(60,610);(80,610);(80,600)|];self#drawHorizon 2;
+		v<-[|(120,540);(120,550);(140,550);(140,540)|];self#drawVertic 6;
+		v<-[|(130,530);(130,540);(150,540);(150,530)|];self#drawHorizon 2;
+		v<-[|(130,600);(130,610);(150,610);(150,600)|];self#drawHorizon 2;
+		v<-[|(160,540);(160,550);(180,550);(180,540)|];self#drawVertic 1;
+		v<-[|(160,590);(160,600);(180,600);(180,590)|];self#drawVertic 1;
+		v<-[|(190,540);(190,550);(210,550);(210,540)|];self#drawVertic 3;
+		v<-[|(200,530);(200,540);(220,540);(220,530)|];self#drawHorizon 3;
+		v<-[|(200,570);(200,580);(220,580);(220,570)|];self#drawHorizon 2;
+		v<-[|(230,540);(230,550);(250,550);(250,540)|];self#drawVertic 3;
+		v<-[|(270,530);(270,540);(290,540);(290,530)|];self#drawVertic 4;
+		v<-[|(280,570);(280,580);(300,580);(300,570)|];self#drawHorizon 3;
+		v<-[|(300,530);(300,540);(320,540);(320,530)|];self#drawVertic 4;
+		v<-[|(330,530);(330,540);(350,540);(350,530)|];self#drawVertic 4;
+		v<-[|(360,540);(360,550);(380,550);(380,540)|];self#drawVertic 4;
+		v<-[|(370,530);(370,540);(390,540);(390,530)|];self#drawHorizon 2;
+		v<-[|(420,540);(420,550);(440,550);(440,540)|];self#drawVertic 3;
+		v<-[|(430,530);(430,540);(450,540);(450,530)|];self#drawHorizon 2;
+		v<-[|(430,570);(430,580);(450,580);(450,570)|];self#drawHorizon 2;
+		v<-[|(460,540);(460,550);(480,550);(480,540)|];self#drawVertic 3;
+		v<-[|(490,530);(490,540);(510,540);(510,530)|];self#drawVertic 5;
+		v<-[|(520,540);(520,550);(540,550);(540,540)|];self#drawVertic 3;
+		v<-[|(530,530);(530,540);(550,540);(550,530)|];self#drawHorizon 3;
+		v<-[|(530,570);(530,580);(550,580);(550,570)|];self#drawHorizon 2;
+		v<-[|(560,540);(560,550);(580,550);(580,540)|];self#drawVertic 7;
+		(** Numer wersji *)
+		v<-[|(160,440);(160,450);(180,450);(180,440)|];self#drawHorizon 1;
+		v<-[|(150,450);(150,460);(170,460);(170,450)|];self#drawHorizon 2;
+		v<-[|(140,460);(140,470);(160,470);(160,460)|];self#drawHorizon 1;
+		v<-[|(180,460);(180,470);(200,470);(200,460)|];self#drawHorizon 1;
+		v<-[|(130,470);(130,480);(150,480);(150,470)|];self#drawHorizon 1;
+		v<-[|(190,470);(190,480);(210,480);(210,470)|];self#drawHorizon 1;
+		v<-[|(120,480);(120,490);(140,490);(140,480)|];self#drawHorizon 1;
+		v<-[|(200,480);(200,490);(220,490);(220,480)|];self#drawHorizon 1;
+		v<-[|(230,440);(230,450);(250,450);(250,440)|];self#drawVertic 2;
+		v<-[|(260,480);(260,490);(280,490);(280,480)|];self#drawHorizon 1;
+		v<-[|(270,490);(270,500);(290,500);(290,490)|];self#drawHorizon 1;
+		v<-[|(280,500);(280,510);(300,510);(300,500)|];self#drawHorizon 1;
+		v<-[|(290,440);(290,450);(310,450);(310,440)|];self#drawVertic 8;
+		v<-[|(320,440);(320,450);(340,450);(340,440)|];self#drawVertic 2;
+		v<-[|(350,450);(350,460);(370,460);(370,450)|];self#drawVertic 6;
+		v<-[|(360,440);(360,450);(380,450);(380,440)|];self#drawHorizon 2;
+		v<-[|(360,510);(360,520);(380,520);(380,510)|];self#drawHorizon 2;
+		v<-[|(390,450);(390,460);(410,460);(410,450)|];self#drawVertic 6
 end
 
 class menu=
 object (self)
 	inherit logo as logo
+	inherit instructions as instructions
 	val mutable pause=false
 	val mutable opt=(-1)
 	val normalColor=rgb 150 150 150
 	val highlightColor=rgb 200 200 200
-	method drawLeft=set_color normalColor;fill_rect 480 0 (size_x()) (size_y())
-	method drawTop=set_color normalColor;fill_rect 0 360 480 (size_y())
+	method drawLeft=set_color normalColor;fill_rect 480 0 (size_x()) 360
+	method drawTop=set_color normalColor;fill_rect 0 360 (size_x()) (size_y())
 	method drawButtons=
 		set_color black;
 		if pause then (moveto 537 339;draw_string "Resume");
@@ -59,6 +135,8 @@ object (self)
 		opt<-i;
 		synchronize()
 	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons;logo#drawLogo
+	method drawInstructions=instructions#drawBackground;instructions#drawText;synchronize()
+	method redrawLogo=self#drawTop;logo#drawLogo
 	method getOpt=opt
 	method setPause=pause<-true
 end
@@ -111,7 +189,7 @@ object (self)
 	method reset=self#erase;width<-60;xPosition<-180;color<-green;self#draw;synchronize()
 	(** Przesuniecie paletki na pozycje x. *)
 	method move x=
-		self#erase; (** Usuwamy paletke na starej pozycji. *)
+		self#erase; (** Usuwamy paletke ze starej pozycji. *)
 		if x<60 then xPosition<-0 (** Jesli pozycja wypada poza lewa krawedzia ekranu, to ustawiamy paletke na pozycji x=0 *)
 		else if x>529-width then xPosition<-479-width (** J.w. z prawej strony. *)
 		else xPosition<-(x-60); (** Ustawiamy paletke na podanej pozycji *)
@@ -124,6 +202,19 @@ object (self)
 				if (xPosition+nwidth>480) then xPosition<-480-nwidth;
 				self#erase;width<-nwidth;self#draw;synchronize()
 		)
+	method collision cx=
+		let lleft=xPosition+(width/6) 
+		and left=xPosition+(width/3) 
+		and middle=xPosition+(width/2) 
+		and right=int_of_float(float_of_int(xPosition)+.(float_of_int(width))/.1.5)
+		and rright=int_of_float(float_of_int(xPosition)+.(float_of_int(width))/.1.2) in
+			if cx=middle then 0
+			else if cx<=lleft then (-3)
+			else if cx>lleft&&cx<=left then (-2)
+			else if cx>left&&cx<middle then (-1)
+			else if cx>middle&&cx<=right then 1
+			else if cx>right&&cx<=rright then 2
+			else 3
 	method getPosition=xPosition
 	method getWidth=width
 end
@@ -368,10 +459,19 @@ let board=new board background plate ball
 (** Nowa instancja menu *)
 let menu=new menu
 let ballCoords (x,y,d)=
-	let rx=ref 0 and ry=ref 0 and rd=ref 0.004 in
-		if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
-		if ((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then ry:=-y
-		else if ball#yCollided||board#yCollided then ry:=-y else ry:=y;
+	let rx=ref 0 and ry=ref 0 and rd=ref d in
+		if ((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then
+			let q=plate#collision ball#getXPosition in
+			rx:=q;ry:=-y;
+			if q=(-3)||q=3 then rd:=0.010
+			else if q=(-2)||q=2 then rd:=0.006
+			else if q=(-1)||q=1 then rd:=0.004
+			else rd:=0.006
+		else 
+		(
+			if ball#yCollided||board#yCollided then ry:=-y else ry:=y;
+			if ball#xCollided||board#xCollided then rx:=-x else rx:=x
+		);
 		(!rx,!ry,!rd)
 let rec delayer f=try delay f with e->delayer f
 let rollTheBall()=
@@ -403,6 +503,12 @@ let plateNavigation()=
 		delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 		|_,_,true->plate#move i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 	in delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+let instructionsNavigation()=
+	let rec navi_aux i=
+		match i.button with
+		|true->menu#redrawLogo;synchronize()
+		|false->navi_aux (wait_next_event [Button_down])
+	in navi_aux (wait_next_event [Button_down])
 let menuNavigation()=
 	let rec navi_aux i=
 		match i.button with
@@ -411,7 +517,7 @@ let menuNavigation()=
 			(
 				match opt with
 				|0->synchronize()
-				|1->synchronize()
+				|1->menu#drawInstructions;instructionsNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
 				|2->locker:=false;ball#reset;ball#changeState false;menu#setPause;background#draw;board#createCollection;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
 				|3->locker:=false;background#draw;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
 				|_->navi_aux (wait_next_event [Mouse_motion;Button_down])
@@ -420,7 +526,7 @@ let menuNavigation()=
 	in navi_aux (wait_next_event [Mouse_motion;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "OCamloid 0.0.0.4";
+	set_window_title "OCamloid 0.6";
 	plate#draw;
 	ball#draw;
 	menu#drawMenu;
