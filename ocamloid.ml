@@ -239,10 +239,10 @@ object (self)
 		self#erase;
 		let xPos=xPosition in
 			xPosition<-(x-30);
-			if self#xCollided xPosition then xPosition<-xPos;
+			if self#xCollided (xPosition-xPos) then xPosition<-xPos;
 			self#draw;synchronize()
 	method onPlate x w=if xPosition>=x&&xPosition-1<=(x+w)&&yPosition-radius=10 then true else false
-	method xCollided x=if (xPosition+x-radius)<=0||(xPosition+radius)>=480 then true else false
+	method xCollided x=if (xPosition+x-radius)<=0||(xPosition+x+radius)>=480 then true else false
 	method yCollided y=if (xPosition+y+radius)>=size_y() then true else false
 	method isDownBelow=if yPosition<0 then true else false
 	method changeState x=state<-x
@@ -470,8 +470,8 @@ let ballCoords (x,y,d)=
 			else rd:=0.004
 		else 
 		(
-			if ball#yCollided x then ry:=-y else ry:=y;
-			if ball#xCollided y then rx:=-x else rx:=x;
+			if ball#yCollided y then ry:=-y else ry:=y;
+			if ball#xCollided x then rx:=-x else rx:=x;
 			let collision=board#collided (x,y) in
 				match collision with
 				|1->rx:=-x
@@ -492,7 +492,6 @@ let rollTheBall()=
 		|false->
 			while !locker do delay 0.001 done;
 			ball#move (x,y);
-			if ball#getXPosition+ball#getRadius+x>=478 then (background#drawRight;synchronize());
 			ball#changeState true;
 			delayer d;
 			delay_aux (ballCoords (x,y,d))
