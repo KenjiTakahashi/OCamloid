@@ -20,14 +20,12 @@ object (self)
 		set_color magenta;fill_rect 20 466 40 20;set_color black;moveto 70 470;draw_string "- Permanent block, impossible to destroy (no points).";
 		set_color blue;fill_rect 20 436 40 20;set_color black;moveto 70 440;draw_string "- Bonus block, drops bonus when hit (+5 points).";
 		moveto 0 432;lineto (size_x()) 432;
-		moveto 20 418;draw_string "Bonuses:";
-		
-		(**
-		|2->vert<-[|(position,340);(position+3,360);(position+7,360);(position+10,340);(position+7,340);(position+6,345);(position+4,345);(position+3,340)|];color<-black*)
-		
+		moveto 20 418;draw_string "Bonuses:";		
 		set_color red;fill_poly [|(20,390);(20,410);(30,410);(30,398);(35,398);(35,390)|];set_color black;moveto 45 395;draw_string "- Lifes +1.";
 		set_color green;fill_poly [|(130,390);(130,410);(140,410);(140,404);(136,404);(136,402);(139,402);(139,398);(136,398);(136,396);(140,396);(140,390)|];set_color black;moveto 150 395;draw_string "- Enlarge plate.";
-		set_color black;fill_poly [|(260,390);(263,410);(267,410);(270,390);(267,390);(266,395);(264,395);(263,390)|];set_color black;moveto 280 395;draw_string "- Ammo +1."
+		set_color black;fill_poly [|(260,390);(263,410);(267,410);(270,390);(267,390);(266,395);(264,395);(263,390)|];moveto 280 395;draw_string "- Ammo +1.";
+		moveto 0 386;lineto (size_x()) 386;
+		moveto 200 368;draw_string "Press mouse button to close this message."
 end
 
 class logo=
@@ -102,6 +100,7 @@ object (self)
 	inherit instructions as instructions
 	val mutable pause=false
 	val mutable opt=(-1)
+	val mutable gameOver=false
 	val normalColor=rgb 150 150 150
 	val highlightColor=rgb 200 200 200
 	method drawLeft=set_color normalColor;fill_rect 480 0 (size_x()) 360
@@ -134,24 +133,25 @@ object (self)
 		);
 		opt<-i;
 		synchronize()
-	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons;logo#drawLogo
+	method drawGameOver=if gameOver then (set_color black;moveto 260 368;draw_string "Game Over!")
+	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons;logo#drawLogo;self#drawGameOver
 	method drawInstructions=instructions#drawBackground;instructions#drawText;synchronize()
 	method redrawLogo=self#drawTop;logo#drawLogo
 	method getOpt=opt
-	method setPause=pause<-true
+	method setPause f=pause<-f
+	method setGameOver f=gameOver<-f
 end
 
 class background=
 object (self)
 	val mutable lifes=5
 	val mutable points=0
-	val mutable ammo=500
+	val mutable ammo=0
 	val mutable level=1
 	val leftColor=white
 	val rightColor=red
 	val borderColor=black
 	method drawLeft=set_color leftColor;fill_rect 0 0 480 (size_y())
-	method drawRight=set_color rightColor;fill_rect 480 0 (size_x()) (size_y())
 	method drawBorders=
 		set_color borderColor;set_line_width 2;
 		moveto 525 330;draw_string "Lifes left";
@@ -170,13 +170,16 @@ object (self)
 	method drawPoints=set_color black;moveto 500 140;draw_string (string_of_int(points))
 	method drawAmmo=set_color black;moveto 500 60;draw_string (string_of_int(ammo))
 	method drawLevel=set_color black;moveto 500 220;draw_string (string_of_int(level))
-	method draw=self#drawLeft;self#drawRight;self#drawBorders;self#drawLifes;self#drawPoints;self#drawLevel;self#drawAmmo
+	method drawRight=set_color rightColor;fill_rect 480 0 (size_x()) (size_y());self#drawBorders;self#drawLifes;self#drawPoints;self#drawLevel;self#drawAmmo
+	method draw=self#drawLeft;self#drawRight
 	method updateLifes f=lifes<-f lifes 1;self#eraseLifes;self#drawLifes
+	method getLifes=lifes
 	method updatePoints p=points<-points+p;self#erasePoints;self#drawPoints
 	method updateLevel=level<-level+1;self#eraseLevel;self#drawLevel
 	method addAmmo=ammo<-ammo+10;self#eraseAmmo;self#drawAmmo
 	method removeAmmo=ammo<-ammo-1;self#eraseAmmo;self#drawAmmo
 	method ammoState=if ammo!=0 then true else false
+	method resetGame=lifes<-5;ammo<-0;points<-0;level<-1;self#drawRight
 end
 
 class plate=
@@ -465,43 +468,51 @@ let ballCoords (x,y,d)=
 			rx:=q;ry:=-y;
 			if q=(-3)||q=3 then rd:=0.010
 			else if q=(-2)||q=2 then rd:=0.006
-			else if q=(-1)||q=1 then rd:=0.004
-			else rd:=0.006
+			else rd:=0.004
 		else 
 		(
 			if ball#yCollided||board#yCollided then ry:=-y else ry:=y;
-			if ball#xCollided||board#xCollided then rx:=-x else rx:=x
+			if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
+			if ball#getXPosition+ball#getRadius+(!rx)>=480 then background#drawRight;synchronize()
 		);
 		(!rx,!ry,!rd)
 let rec delayer f=try delay f with e->delayer f
 let rollTheBall()=
 	let rec delay_aux (x,y,d)=
 		match ball#isDownBelow with
-		|true->background#updateLifes (-);plate#reset;ball#reset;ball#changeState false
+		|true->
+			background#updateLifes (-);
+			plate#reset;
+			if background#getLifes=0 then (menu#setPause false;menu#setGameOver true;menu#drawMenu);
+			ball#reset;
+			ball#changeState false
 		|false->while !locker do delay 0.001 done;ball#move (x,y);ball#changeState true;delayer d;delay_aux (ballCoords (x,y,d))
 	in delay_aux (ballCoords(1,1,0.004))
 let plateNavigation()=
 	let rec delay_aux m i=
-		match i.key,i.button,m with
-		|'\027',_,_->locker:=true;menu#drawMenu;synchronize()
-		|_,true,false->create rollTheBall();delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
-		|_,false,false->
-			plate#move i.mouse_x;
-			ball#onPlateMove i.mouse_x;
-			delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
-		|_,true,true->
+		if background#getLifes!=0 then
 		(
-			if (background#ammoState&&board#getLBulletFlying=false&&board#getRBulletFlying=false) then
+			match i.key,i.button,m with
+			|'\027',_,_->locker:=true;menu#drawMenu;synchronize()
+			|_,true,false->create rollTheBall();delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+			|_,false,false->
+				plate#move i.mouse_x;
+				ball#onPlateMove i.mouse_x;
+				delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+			|_,true,true->
 			(
-				background#removeAmmo;
-				board#setLBulletFlying true;
-				board#setRBulletFlying true;
-				let lrifle=new rifle plate#getPosition board in lrifle#shot 0;
-				let rrifle=new rifle (plate#getPosition+plate#getWidth-3) board in rrifle#shot 1
-			)
-		);
-		delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
-		|_,_,true->plate#move i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+				if (background#ammoState&&board#getLBulletFlying=false&&board#getRBulletFlying=false) then
+				(
+					background#removeAmmo;
+					board#setLBulletFlying true;
+					board#setRBulletFlying true;
+					let lrifle=new rifle plate#getPosition board in lrifle#shot 0;
+					let rrifle=new rifle (plate#getPosition+plate#getWidth-3) board in rrifle#shot 1
+				)
+			);
+			delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+			|_,_,true->plate#move i.mouse_x;delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
+		)
 	in delay_aux (ball#isMoving) (wait_next_event [Mouse_motion;Key_pressed;Button_down])
 let instructionsNavigation()=
 	let rec navi_aux i=
@@ -518,7 +529,18 @@ let menuNavigation()=
 				match opt with
 				|0->synchronize()
 				|1->menu#drawInstructions;instructionsNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
-				|2->locker:=false;ball#reset;ball#changeState false;menu#setPause;background#draw;board#createCollection;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
+				|2->
+					background#resetGame;
+					menu#setGameOver false;
+					locker:=false;
+					ball#reset;
+					ball#changeState false;
+					menu#setPause true;
+					background#draw;
+					board#createCollection;
+					board#drawCollection;
+					plateNavigation();
+					navi_aux (wait_next_event [Mouse_motion;Button_down])
 				|3->locker:=false;background#draw;board#drawCollection;plateNavigation();navi_aux (wait_next_event [Mouse_motion;Button_down])
 				|_->navi_aux (wait_next_event [Mouse_motion;Button_down])
 			)
@@ -526,7 +548,7 @@ let menuNavigation()=
 	in navi_aux (wait_next_event [Mouse_motion;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "OCamloid 0.6";
+	set_window_title "OCamloid 0.8";
 	plate#draw;
 	ball#draw;
 	menu#drawMenu;
