@@ -133,8 +133,9 @@ object (self)
 		);
 		opt<-i;
 		synchronize()
-	method drawGameOver=if gameOver then (set_color black;moveto 260 368;draw_string "Game Over!")
+	method drawGameOver=if gameOver then (set_color black;moveto 260 356;draw_string "Game Over!")
 	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons;logo#drawLogo;self#drawGameOver
+	method drawPoints p=moveto 320 368;draw_string ("Points gained: "^string_of_int(p))
 	method drawInstructions=instructions#drawBackground;instructions#drawText;synchronize()
 	method redrawLogo=self#drawTop;logo#drawLogo
 	method getOpt=opt
@@ -174,6 +175,7 @@ object (self)
 	method draw=self#drawLeft;self#drawRight
 	method updateLifes f=lifes<-f lifes 1;self#eraseLifes;self#drawLifes
 	method getLifes=lifes
+	method getPoints=points
 	method updatePoints p=points<-points+p;self#erasePoints;self#drawPoints
 	method updateLevel=level<-level+1;self#eraseLevel;self#drawLevel
 	method addAmmo=ammo<-ammo+10;self#eraseAmmo;self#drawAmmo
@@ -237,11 +239,11 @@ object (self)
 		self#erase;
 		let xPos=xPosition in
 			xPosition<-(x-30);
-			if self#xCollided then xPosition<-xPos;
+			if self#xCollided xPosition then xPosition<-xPos;
 			self#draw;synchronize()
 	method onPlate x w=if xPosition>=x&&xPosition-1<=(x+w)&&yPosition-radius=10 then true else false
-	method xCollided=if (xPosition-radius)<=0||(xPosition+radius)>=480 then true else false
-	method yCollided=if (yPosition+radius)>=size_y() then true else false
+	method xCollided x=if (xPosition+x-radius)<=0||(xPosition+radius)>=480 then true else false
+	method yCollided y=if (xPosition+y+radius)>=size_y() then true else false
 	method isDownBelow=if yPosition<0 then true else false
 	method changeState x=state<-x
 	method isMoving=state
@@ -339,30 +341,26 @@ object (self)
 			|h1::t1,h2::t2->maincolor<-h2;vert<-h1;self#draw;draw_aux t1 t2
 			|_,_->synchronize()
 		in draw_aux collection colors
-	method xCollided=
+	method collided (xs,ys)=
 		let x=ball#getXPosition and y=ball#getYPosition and r=ball#getRadius in
-			if y>=350 then
+			if (y+r)>=360 then
 			(
 				let rec collided_aux col=
 					match col with
-					|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
-						if ((x+r)>=fst a&&(x-r)<=fst b&&y<=snd a&&y>=snd b) then (self#removeFromCollection hd;true) else collided_aux tl
-					|_->false
+					|hd::tl->let a=hd.(0) and b=hd.(2) and result=ref 0 in
+						if ((x+xs+r)>=fst a&&(x+xs-r)<=fst b)&&((y+ys+r)>=snd b&&(y+ys-r)<=snd a) then
+						(
+							if (x+r<fst a&&x+xs+r>=fst a)||(x-r>fst b&&x+xs-r<=fst b) then result:=1
+							else if (y+r<snd b&&y+ys+r>=snd b)||(y-r>snd a&&y+ys-r<=snd a) then result:=2
+							else result:=2;
+							self#removeFromCollection hd;
+							!result
+						)
+						else collided_aux tl
+					|_->0
 				in collided_aux collection
 			)
-			else false
-	method yCollided=
-		let x=ball#getXPosition and y=ball#getYPosition and r=ball#getRadius in
-			if y>=350 then
-			(
-				let rec collided_aux col=
-					match col with
-					|hd::tl->let a=Array.get hd 0 and b=Array.get hd 2 in
-						if ((y-r)<=snd a&&(y+r)>=snd b&&x>=fst a&&x<=fst b) then (self#removeFromCollection hd;true) else collided_aux tl
-					|_->false
-				in collided_aux collection
-			)
-			else false
+			else 0
 	method removeFromCollection chosen=
 	(
 		let rec remove_aux col coltmp color colortmp=
@@ -461,6 +459,7 @@ let ball=new ball
 let board=new board background plate ball
 (** Nowa instancja menu *)
 let menu=new menu
+(** Funkcja ustalajaca nowe koordynaty pilki. *)
 let ballCoords (x,y,d)=
 	let rx=ref 0 and ry=ref 0 and rd=ref d in
 		if ((ball#onPlate plate#getPosition plate#getWidth)&&ball#isMoving) then
@@ -471,9 +470,13 @@ let ballCoords (x,y,d)=
 			else rd:=0.004
 		else 
 		(
-			if ball#yCollided||board#yCollided then ry:=-y else ry:=y;
-			if ball#xCollided||board#xCollided then rx:=-x else rx:=x;
-			if ball#getXPosition+ball#getRadius+(!rx)>=480 then background#drawRight;synchronize()
+			if ball#yCollided x then ry:=-y else ry:=y;
+			if ball#xCollided y then rx:=-x else rx:=x;
+			let collision=board#collided (x,y) in
+				match collision with
+				|1->rx:=-x
+				|2->ry:=-y
+				|_->()
 		);
 		(!rx,!ry,!rd)
 let rec delayer f=try delay f with e->delayer f
@@ -483,10 +486,16 @@ let rollTheBall()=
 		|true->
 			background#updateLifes (-);
 			plate#reset;
-			if background#getLifes=0 then (menu#setPause false;menu#setGameOver true;menu#drawMenu);
+			if background#getLifes=0 then (menu#setPause false;menu#setGameOver true;menu#drawMenu;menu#drawPoints background#getPoints);
 			ball#reset;
 			ball#changeState false
-		|false->while !locker do delay 0.001 done;ball#move (x,y);ball#changeState true;delayer d;delay_aux (ballCoords (x,y,d))
+		|false->
+			while !locker do delay 0.001 done;
+			ball#move (x,y);
+			if ball#getXPosition+ball#getRadius+x>=478 then (background#drawRight;synchronize());
+			ball#changeState true;
+			delayer d;
+			delay_aux (ballCoords (x,y,d))
 	in delay_aux (ballCoords(1,1,0.004))
 let plateNavigation()=
 	let rec delay_aux m i=
@@ -548,7 +557,7 @@ let menuNavigation()=
 	in navi_aux (wait_next_event [Mouse_motion;Button_down])
 let main=
 	open_graph " 640x640";
-	set_window_title "OCamloid 0.8";
+	set_window_title "OCamloid 0.9";
 	plate#draw;
 	ball#draw;
 	menu#drawMenu;
