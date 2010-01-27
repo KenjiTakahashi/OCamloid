@@ -1,29 +1,38 @@
+(** Ladowanie modulow grafiki i watkow. *)
 open Graphics
 open Thread
 
 (** Funkcja odpowiedzialna za blokowanie obiektow w trybie pauzy *)
 let locker=ref false
 
+(** Klasa sluzaca do wyswietlania instrukcji do gry. *)
 class instructions=
 object (self)
-	val color=rgb 150 150 150
-	method drawBackground=set_color color;fill_rect 0 360 (size_x()) (size_y())
-	method drawText=
-		set_color black;
-		moveto 20 611;draw_string "Controls:";
-		moveto 20 592;draw_string "Mouse button - release the ball or shot the gun.";
-		moveto 20 573;draw_string "Mouse movement - control the plate.";
-		moveto 0 569;lineto (size_x()) 569;
-		moveto 20 554;draw_string "Blocks types:";
-		set_color green;fill_rect 20 526 40 20;set_color black;moveto 70 530;draw_string "- normal block, disappears when hit (+10 points).";
-		set_color red;fill_rect 20 496 40 20;set_color black;moveto 70 500;draw_string "- 2xhit block, turns to green when hit (+10 points).";
-		set_color magenta;fill_rect 20 466 40 20;set_color black;moveto 70 470;draw_string "- Permanent block, impossible to destroy (no points).";
-		set_color blue;fill_rect 20 436 40 20;set_color black;moveto 70 440;draw_string "- Bonus block, drops bonus when hit (+5 points).";
-		moveto 0 432;lineto (size_x()) 432;
-		moveto 20 418;draw_string "Bonuses:";		
-		set_color red;fill_poly [|(20,390);(20,410);(30,410);(30,398);(35,398);(35,390)|];set_color black;moveto 45 395;draw_string "- Lifes +1.";
-		set_color green;fill_poly [|(130,390);(130,410);(140,410);(140,404);(136,404);(136,402);(139,402);(139,398);(136,398);(136,396);(140,396);(140,390)|];set_color black;moveto 150 395;draw_string "- Enlarge plate.";
-		set_color black;fill_poly [|(260,390);(263,410);(267,410);(270,390);(267,390);(266,395);(264,395);(263,390)|];moveto 280 395;draw_string "- Ammo +1.";
+	val color=rgb 150 150 150 (** Kolor tla *)
+	method drawBackground=set_color color;fill_rect 0 360 (size_x()) (size_y()) (** Rysowanie tla. *)
+	method drawText= (** Rysowanie wlasciwego tekstu instrukcji. *)
+		set_color black; (** Ustawienie koloru. *)
+		moveto 20 611;draw_string "Controls:"; (** Przejscie do punktu i wypisanie tekstu. *)
+		moveto 20 592;draw_string "Mouse button - release the ball or shot the gun."; (** j.w. *)
+		moveto 20 573;draw_string "Mouse movement - control the plate."; (** j.w. *)
+		moveto 0 569;lineto (size_x()) 569; (** Rysowanie poziomej linii dzielacej segmenty. *)
+		moveto 20 554;draw_string "Blocks types:"; (** Przejscie do punktu i wypsanie tekstu. *)
+		moveto 70 530;draw_string "- normal block, disappears when hit (+10 points)."; (** j.w. *)
+		moveto 70 500;draw_string "- 2xhit block, turns to green when hit (+10 points)."; (** j.w. *)
+		moveto 70 470;draw_string "- Permanent block, impossible to destroy (no points)."; (** j.w. *)
+		moveto 70 440;draw_string "- Bonus block, drops bonus when hit (+5 points)."; (** j.w. *)
+		set_color green;fill_rect 20 526 40 20; (** Zmiana koloru i rysowanie bloku. *)
+		set_color red;fill_rect 20 496 40 20; (** j.w. *)
+		set_color magenta;fill_rect 20 466 40 20; (** j.w. *)
+		set_color blue;fill_rect 20 436 40 20; (** j.w. *)
+		set_color black;moveto 0 432;lineto (size_x()) 432; (** Ustawienie koloru i rysowanie poziomej linii dzielacej segmenty. *)
+		moveto 20 418;draw_string "Bonuses:";
+		moveto 45 395;draw_string "- Lifes +1.";
+		moveto 150 395;draw_string "- Enlarge plate.";
+		moveto 280 395;draw_string "- Ammo +1.";
+		set_color red;fill_poly [|(20,390);(20,410);(30,410);(30,398);(35,398);(35,390)|];
+		set_color green;fill_poly [|(130,390);(130,410);(140,410);(140,404);(136,404);(136,402);(139,402);(139,398);(136,398);(136,396);(140,396);(140,390)|];
+		set_color black;fill_poly [|(260,390);(263,410);(267,410);(270,390);(267,390);(266,395);(264,395);(263,390)|];
 		moveto 0 386;lineto (size_x()) 386;
 		moveto 200 368;draw_string "Press mouse button to close this message."
 end
@@ -243,7 +252,7 @@ object (self)
 			self#draw;synchronize()
 	method onPlate x w=if xPosition>=x&&xPosition-1<=(x+w)&&yPosition-radius=10 then true else false
 	method xCollided x=if (xPosition+x-radius)<=0||(xPosition+x+radius)>=480 then true else false
-	method yCollided y=if (xPosition+y+radius)>=size_y() then true else false
+	method yCollided y=if (yPosition+y+radius)>=size_y() then true else false
 	method isDownBelow=if yPosition<0 then true else false
 	method changeState x=state<-x
 	method isMoving=state
@@ -290,7 +299,7 @@ object (self)
 	method pdraw=
 	(
 		Random.self_init();
-		model<-Random.int 2;
+		model<-Random.int 3;
 		match model with
 		|0->vert<-[|(position,340);(position,360);(position+10,360);(position+10,348);(position+15,348);(position+15,340)|];color<-red
 		|1->vert<-[|(position,340);(position,360);(position+10,360);(position+10,354);(position+6,354);(position+6,352);(position+9,352);(position+9,348);(position+6,348);(position+6,346);(position+10,346);(position+10,340)|];color<-green
