@@ -2,45 +2,43 @@
 open Graphics
 open Thread
 
-(** Funkcja odpowiedzialna za blokowanie obiektow w trybie pauzy *)
-let locker=ref false
+let locker=ref false (** Funkcja odpowiedzialna za blokowanie obiektow w trybie pauzy *)
 
-(** Klasa sluzaca do wyswietlania instrukcji do gry. *)
-class instructions=
+class instructions= (** Klasa sluzaca do wyswietlania instrukcji do gry. *)
 object (self)
 	val color=rgb 150 150 150 (** Kolor tla *)
 	method drawBackground=set_color color;fill_rect 0 360 (size_x()) (size_y()) (** Rysowanie tla. *)
 	method drawText= (** Rysowanie wlasciwego tekstu instrukcji. *)
 		set_color black; (** Ustawienie koloru. *)
 		moveto 20 611;draw_string "Controls:"; (** Przejscie do punktu i wypisanie tekstu. *)
-		moveto 20 592;draw_string "Mouse button - release the ball or shot the gun."; (** j.w. *)
-		moveto 20 573;draw_string "Mouse movement - control the plate."; (** j.w. *)
+		moveto 20 592;draw_string "Mouse button - release the ball or shot the gun.";
+		moveto 20 573;draw_string "Mouse movement - control the plate.";
 		moveto 0 569;lineto (size_x()) 569; (** Rysowanie poziomej linii dzielacej segmenty. *)
-		moveto 20 554;draw_string "Blocks types:"; (** Przejscie do punktu i wypsanie tekstu. *)
-		moveto 70 530;draw_string "- normal block, disappears when hit (+10 points)."; (** j.w. *)
-		moveto 70 500;draw_string "- 2xhit block, turns to green when hit (+10 points)."; (** j.w. *)
-		moveto 70 470;draw_string "- Permanent block, impossible to destroy (no points)."; (** j.w. *)
-		moveto 70 440;draw_string "- Bonus block, drops bonus when hit (+5 points)."; (** j.w. *)
+		moveto 20 554;draw_string "Blocks types:"; (** Przejscie do punktu i wypisanie tekstu. *)
+		moveto 70 530;draw_string "- normal block, disappears when hit (+10 points).";
+		moveto 70 500;draw_string "- 2xhit block, turns to green when hit (+10 points).";
+		moveto 70 470;draw_string "- Permanent block, impossible to destroy (no points).";
+		moveto 70 440;draw_string "- Bonus block, drops bonus when hit (+5 points).";
 		set_color green;fill_rect 20 526 40 20; (** Zmiana koloru i rysowanie bloku. *)
-		set_color red;fill_rect 20 496 40 20; (** j.w. *)
-		set_color magenta;fill_rect 20 466 40 20; (** j.w. *)
-		set_color blue;fill_rect 20 436 40 20; (** j.w. *)
+		set_color red;fill_rect 20 496 40 20;
+		set_color magenta;fill_rect 20 466 40 20;
+		set_color blue;fill_rect 20 436 40 20;
 		set_color black;moveto 0 432;lineto (size_x()) 432; (** Ustawienie koloru i rysowanie poziomej linii dzielacej segmenty. *)
-		moveto 20 418;draw_string "Bonuses:";
+		moveto 20 418;draw_string "Bonuses:"; (** Przejscie do punktu i wypisanie tekstu. *)
 		moveto 45 395;draw_string "- Lifes +1.";
 		moveto 150 395;draw_string "- Enlarge plate.";
 		moveto 280 395;draw_string "- Ammo +1.";
-		set_color red;fill_poly [|(20,390);(20,410);(30,410);(30,398);(35,398);(35,390)|];
+		set_color red;fill_poly [|(20,390);(20,410);(30,410);(30,398);(35,398);(35,390)|]; (** Rysowanie znakow power-upow. *)
 		set_color green;fill_poly [|(130,390);(130,410);(140,410);(140,404);(136,404);(136,402);(139,402);(139,398);(136,398);(136,396);(140,396);(140,390)|];
 		set_color black;fill_poly [|(260,390);(263,410);(267,410);(270,390);(267,390);(266,395);(264,395);(263,390)|];
 		moveto 0 386;lineto (size_x()) 386;
-		moveto 200 368;draw_string "Press mouse button to close this message."
+		moveto 200 368;draw_string "Press mouse button to close this message." (** Przejscie do punktu i wypisanie tekstu. *)
 end
 
-class logo=
+class logo= (** Klasa sluzaca do wyswietlania loga. *)
 object (self)
-	val mutable v=[||]
-	method color=
+	val mutable v=[||] (** Tablica wierzcholkow. *)
+	method color= (** Losowanie koloru. *)
 		Random.self_init();
 		let i=Random.int 4 in
 			match i with
@@ -48,11 +46,10 @@ object (self)
 			|1->red
 			|2->magenta
 			|_->green
-	method draw c v=set_color c;fill_poly v
-	method drawVertic j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a,b+10)) v done
-	method drawHorizon j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a+20,b)) v done
-	(** Rysowanie loga i numeru wersji *)
-	method drawLogo=
+	method draw c v=set_color c;fill_poly v (** Rysowanie wielokata o danym kolorze c i wspolrzednych v. *)
+	method drawVertic j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a,b+10)) v done (** Rysowanie j wielokatow z przesunieciem w pionie. *)
+	method drawHorizon j=for i=1 to j do self#draw self#color v;v<-Array.map (fun (a,b)->(a+20,b)) v done (** Rysowanie j wielokatow z przesunieciem w poziomie *)
+	method drawLogo= (** Rysowanie loga i numeru wersji *)
 		(** Logo *)
 		v<-[|(50,540);(50,550);(70,550);(70,540)|];self#drawVertic 6;
 		v<-[|(60,530);(60,540);(80,540);(80,530)|];self#drawHorizon 2;
@@ -103,137 +100,135 @@ object (self)
 		v<-[|(390,450);(390,460);(410,460);(410,450)|];self#drawVertic 6
 end
 
-class menu=
+class menu= (** Klasa sluzaca do wyswietlania i obslugi menu. *)
 object (self)
-	inherit logo as logo
-	inherit instructions as instructions
-	val mutable pause=false
-	val mutable opt=(-1)
-	val mutable gameOver=false
-	val normalColor=rgb 150 150 150
-	val highlightColor=rgb 200 200 200
-	method drawLeft=set_color normalColor;fill_rect 480 0 (size_x()) 360
-	method drawTop=set_color normalColor;fill_rect 0 360 (size_x()) (size_y())
-	method drawButtons=
+	inherit logo as logo (** Dziedziczenie loga. *)
+	inherit instructions as instructions (** Dziedziczenie instrukcji. *)
+	val mutable pause=false (** Stan pauzy. *)
+	val mutable opt=(-1) (** Aktualnie wybrana opcja. *)
+	val mutable gameOver=false (** Stan konca gry. *)
+	val normalColor=rgb 150 150 150 (** Kolor tla opcji. *)
+	val highlightColor=rgb 200 200 200 (** Kolor podswietlenia. *)
+	method drawRight=set_color normalColor;fill_rect 480 0 (size_x()) 360 (** Rysowanie prawej czesci pod menu. *)
+	method drawTop=set_color normalColor;fill_rect 0 360 (size_x()) (size_y()) (** Rysowanie topu pod logo. *)
+	method drawButtons= (** Rysowanie przyciskow menu. *)
 		set_color black;
-		if pause then (moveto 537 339;draw_string "Resume");
+		if pause then (moveto 537 339;draw_string "Resume"); (** Jesli gra jest w stanie pauzy, rysujemy rowniez przycisk wnowienia. *)
 		moveto 515 310;draw_string "Start New Game";
 		moveto 522 281;draw_string "Instructions";
 		moveto 545 252;draw_string "Exit"
-	method getButton x y=
-		if (x>=480&&x<=(size_y())) then
+	method getButton x y= (** Ustalanie, ktora opcja zostala wskazana. *)
+		if (x>=480&&x<(size_x())&&y<=358&&y>=242) then (** Jesli wskazanie nastapilo w obszarze menu. *)
 		(
-			if (y>=242&&y<=266) then 0
-			else if (y>=271&&y<=300) then 1
-			else if (y>=300&&y<=329) then 2
-			else if (y>=329&&y<=358&&pause) then 3
-			else (-1)
+			if (y>=242&&y<=266) then 0 (** Obszar czwartej opcji. (Exit) *)
+			else if (y>=271&&y<=300) then 1 (** Obszar trzeciej opcji. (Instructions) *)
+			else if (y>=300&&y<=329) then 2 (** Obszar drugiej opcji. (Start New Game) *)
+			else if (y>=329&&y<=358&&pause) then 3 (** Obszar pierwszej opcji. (Resume) Tylko jesli gra jest w stanie pauzy. *)
+			else (-1) (** W przeciwnym wypadku (dla kompatybilnosci typow). *)
 		)
-		else (-1)
-	method highlight x y=
-		let i=self#getButton x y in
+		else (-1) (** Nie nastapilo wskazanie w obszarze menu. *)
+	method highlight x y= (** Podswietlanie opcji w menu. *)
+		let i=self#getButton x y in (** Pobieranie aktualnie wskazanej opcji. *)
 		(
-			match i with
-			|0->self#drawLeft;set_color highlightColor;fill_rect 480 244 160 28;self#drawButtons
-			|1->self#drawLeft;set_color highlightColor;fill_rect 480 273 160 28;self#drawButtons
-			|2->self#drawLeft;set_color highlightColor;fill_rect 480 302 160 28;self#drawButtons
-			|3->self#drawLeft;set_color highlightColor;fill_rect 480 331 160 28;self#drawButtons
-			|_->if (opt!=(-1)) then self#drawLeft;self#drawButtons
+			match i with (** Matchowanie po opcjach menu. *)
+			|0->self#drawRight;set_color highlightColor;fill_rect 480 244 160 28;self#drawButtons (** Podswietlenie czwartej opcji. (Exit) *)
+			|1->self#drawRight;set_color highlightColor;fill_rect 480 273 160 28;self#drawButtons (** Podswietlenie trzeciej opcji. (Instructions) *)
+			|2->self#drawRight;set_color highlightColor;fill_rect 480 302 160 28;self#drawButtons (** Podswietlenie drugiej opcji. (Start New Game) *)
+			|3->self#drawRight;set_color highlightColor;fill_rect 480 331 160 28;self#drawButtons (** Podswietlenie pierwszej opcji. (Resume) *)
+			|_->if (opt!=(-1)) then self#drawRight;self#drawButtons (** Powrot do stanu poczatkowego (bez podswietlenia). *)
 		);
-		opt<-i;
-		synchronize()
-	method drawGameOver=if gameOver then (set_color black;moveto 260 356;draw_string "Game Over!")
-	method drawMenu=self#drawLeft;self#drawTop;self#drawButtons;logo#drawLogo;self#drawGameOver
-	method drawPoints p=moveto 320 368;draw_string ("Points gained: "^string_of_int(p))
-	method drawInstructions=instructions#drawBackground;instructions#drawText;synchronize()
-	method redrawLogo=self#drawTop;logo#drawLogo
-	method getOpt=opt
-	method setPause f=pause<-f
-	method setGameOver f=gameOver<-f
+		opt<-i; (** Przypisanie aktualnie podswietlonej opcji do (potencjalnie) wybranej. *)
+		synchronize() (** Synchronizacja obrazu. *)
+	method drawGameOver=if gameOver then (set_color black;moveto 260 356;draw_string "Game Over!") (** Rysowanie napisu o koncu gry. *)
+	method drawMenu=self#drawRight;self#drawTop;self#drawButtons;logo#drawLogo;self#drawGameOver (** Rysowanie menu. *)
+	method drawPoints p=moveto 320 368;draw_string ("Points gained: "^string_of_int(p)) (** Rysowanie ilosci zdobytych punktow (po zakonczeniu gry). *)
+	method drawInstructions=instructions#drawBackground;instructions#drawText;synchronize() (** Rysowanie instrukcji. *)
+	method redrawLogo=self#drawTop;logo#drawLogo (** Przerysowywanie loga (potrzebne po zamknieciu instrukcji). *)
+	method getOpt=opt (** Pobieranie aktualnie wybranej opcji. *)
+	method setPause f=pause<-f (** Ustawianie stanu pauzy. *)
+	method setGameOver f=gameOver<-f (** Ustawianie stanu konca gry. *)
 end
 
-class background=
+class background= (** Klasa sluzaca do rysowania tla i obslugi panelu bocznego gry. *)
 object (self)
-	val mutable lifes=5
-	val mutable points=0
-	val mutable ammo=0
-	val mutable level=1
-	val leftColor=white
-	val rightColor=red
-	val borderColor=black
-	method drawLeft=set_color leftColor;fill_rect 0 0 480 (size_y())
-	method drawBorders=
-		set_color borderColor;set_line_width 2;
-		moveto 525 330;draw_string "Lifes left";
-		draw_rect 490 280 130 50;
+	val mutable lifes=5 (** Liczba zyc. *)
+	val mutable points=0 (** Liczba punktow. *)
+	val mutable ammo=0 (** Ilosc amunicji. *)
+	val mutable level=1 (** Poziom. *)
+	val leftColor=white (** Kolor lewej czesci planszy. *)
+	val rightColor=red (** Kolor prawej czesci planszy (panelu bocznego). *)
+	val borderColor=black (* Kolor ramek. *)
+	method drawLeft=set_color leftColor;fill_rect 0 0 480 (size_y()) (** Rysowanie lewej czesci planszy. *)
+	method drawBorders= (** Rysowanie ramek panelu bocznego. *)
+		set_color borderColor;set_line_width 2; (** Ustawianie koloru i grubosci ramek. *)
+		moveto 525 330;draw_string "Lifes left"; (** Rysowanie tekstu. *)
+		draw_rect 490 280 130 50; (** Rysowanie ramki. *)
 		moveto 540 250;draw_string "Level";
 		draw_rect 490 200 130 50;
 		moveto 515 170;draw_string "Points gained";
 		draw_rect 490 120 130 50;
 		moveto 525 90;draw_string "Ammunition";
 		draw_rect 490 40 130 50
-	method eraseLifes=set_color rightColor;fill_rect 540 290 40 20
-	method erasePoints=set_color rightColor;fill_rect 500 130 80 20
-	method eraseAmmo=set_color rightColor;fill_rect 500 50 80 20
-	method eraseLevel=set_color rightColor;fill_rect 500 210 80 20
-	method drawLifes=set_color black;moveto 550 300;draw_string (string_of_int(lifes))
-	method drawPoints=set_color black;moveto 500 140;draw_string (string_of_int(points))
-	method drawAmmo=set_color black;moveto 500 60;draw_string (string_of_int(ammo))
-	method drawLevel=set_color black;moveto 500 220;draw_string (string_of_int(level))
-	method drawRight=set_color rightColor;fill_rect 480 0 (size_x()) (size_y());self#drawBorders;self#drawLifes;self#drawPoints;self#drawLevel;self#drawAmmo
-	method draw=self#drawLeft;self#drawRight
-	method updateLifes f=lifes<-f lifes 1;self#eraseLifes;self#drawLifes
-	method getLifes=lifes
-	method getPoints=points
-	method updatePoints p=points<-points+p;self#erasePoints;self#drawPoints
-	method updateLevel=level<-level+1;self#eraseLevel;self#drawLevel
-	method addAmmo=ammo<-ammo+10;self#eraseAmmo;self#drawAmmo
-	method removeAmmo=ammo<-ammo-1;self#eraseAmmo;self#drawAmmo
-	method ammoState=if ammo!=0 then true else false
-	method resetGame=lifes<-5;ammo<-0;points<-0;level<-1;self#drawRight
+	method eraseLifes=set_color rightColor;fill_rect 540 290 40 20 (** Czyszczenie ilosci zyc z ekranu (potrzebne do aktualizacji). *)
+	method erasePoints=set_color rightColor;fill_rect 500 130 80 20 (** Czyszczenie ilosci punktow z ekranu (j.w.). *)
+	method eraseAmmo=set_color rightColor;fill_rect 500 50 80 20 (** Czyszczenie ilosci amunicji z ekranu (j.w.). *)
+	method eraseLevel=set_color rightColor;fill_rect 500 210 80 20 (** Czyszczenie poziomu z ekranu (j.w.) *)
+	method drawLifes=set_color black;moveto 550 300;draw_string (string_of_int(lifes)) (** Rysowanie ilosci zyc. *)
+	method drawPoints=set_color black;moveto 500 140;draw_string (string_of_int(points)) (** Rysowanie ilosci punktow. *)
+	method drawAmmo=set_color black;moveto 500 60;draw_string (string_of_int(ammo)) (** Rysowanie ilosci amunicji. *)
+	method drawLevel=set_color black;moveto 500 220;draw_string (string_of_int(level)) (** Rysowanie poziomu. *)
+	method drawRight=set_color rightColor;fill_rect 480 0 (size_x()) (size_y());self#drawBorders;self#drawLifes;self#drawPoints;self#drawLevel;self#drawAmmo (** Rysowanie prawej czesci planszy (panelu). *)
+	method draw=self#drawLeft;self#drawRight (** Rysowanie calosci planszy. *)
+	method updateLifes f=lifes<-f lifes 1;self#eraseLifes;self#drawLifes (** Aktualizacja ilosci zyc. *)
+	method getLifes=lifes (** Pobieranie ilosci zyc. *)
+	method getPoints=points (** Pobieranie ilosci punktow. *)
+	method updatePoints p=points<-points+p;self#erasePoints;self#drawPoints (** Aktualizacja ilosci punktow. *)
+	method updateLevel=level<-level+1;self#eraseLevel;self#drawLevel (** Aktualizacja poziomu. *)
+	method addAmmo=ammo<-ammo+10;self#eraseAmmo;self#drawAmmo (** Dodawanie amunicji. *)
+	method removeAmmo=ammo<-ammo-1;self#eraseAmmo;self#drawAmmo (** Odejmowanie amunicji. *)
+	method ammoState=if ammo!=0 then true else false (** Pobieranie stanu amunicji (jest/nie ma). *)
+	method resetGame=lifes<-5;ammo<-0;points<-0;level<-1;self#drawRight (** Reset planszy do ustawien wyjsciowych. *)
 end
 
-class plate=
+class plate= (** Klasa sluzaca do rysowania i obslugi paletki. *)
 object (self)
-	val mutable width=60
-	val mutable xPosition=180
-	val mutable color=green
-	method draw=set_color color;fill_rect xPosition 0 width 10
-	method erase=set_color white;fill_rect xPosition 0 width 10
-	method reset=self#erase;width<-60;xPosition<-180;color<-green;self#draw;synchronize()
-	(** Przesuniecie paletki na pozycje x. *)
-	method move x=
-		self#erase; (** Usuwamy paletke ze starej pozycji. *)
-		if x<60 then xPosition<-0 (** Jesli pozycja wypada poza lewa krawedzia ekranu, to ustawiamy paletke na pozycji x=0 *)
+	val mutable width=60 (** Szerokosc. *)
+	val mutable xPosition=180 (** Pozycja. *)
+	val mutable color=green (** Kolor. *)
+	method draw=set_color color;fill_rect xPosition 0 width 10 (** Rysowanie. *)
+	method erase=set_color white;fill_rect xPosition 0 width 10 (** Czyszczenie. *)
+	method reset=self#erase;width<-60;xPosition<-180;color<-green;self#draw;synchronize() (** Reset do ustawien wyjsciowych. *)
+	method move x= (** Przesuniecie paletki na pozycje x. *)
+		self#erase; (** Usuwanie paletki ze starej pozycji. *)
+		if x<60 then xPosition<-0 (** Jesli pozycja wypada poza lewa krawedzia ekranu, to ustawianie paletki na pozycji x=0 *)
 		else if x>529-width then xPosition<-479-width (** J.w. z prawej strony. *)
-		else xPosition<-(x-60); (** Ustawiamy paletke na podanej pozycji *)
-		self#draw;synchronize() (** Rysujemy paletke w nowym miejscu i synchronizujemy obraz *)
-	(** Zmiana rozmiaru paletki (if dla zabezpieczenia przed "ucieciem" kawalka badz "wyjechaniem" poza obszar). *)
-	method resize f=
+		else xPosition<-(x-60); (** Ustawianie paletki na podanej pozycji. *)
+		self#draw;synchronize() (** Rysowanie paletki w nowym miejscu i synchronizacja obrazu. *)
+	method resize f= (** Zmiana rozmiaru paletki (if dla zabezpieczenia przed "ucieciem" kawalka badz "wyjechaniem" poza obszar). *)
 		if (f width 20)>=60 then
 		(
 			let nwidth=f width 20 in
 				if (xPosition+nwidth>480) then xPosition<-480-nwidth;
 				self#erase;width<-nwidth;self#draw;synchronize()
 		)
-	method collision cx=
-		let lleft=xPosition+(width/6) 
-		and left=xPosition+(width/3) 
-		and middle=xPosition+(width/2) 
-		and right=int_of_float(float_of_int(xPosition)+.(float_of_int(width))/.1.5)
-		and rright=int_of_float(float_of_int(xPosition)+.(float_of_int(width))/.1.2) in
-			if cx=middle then 0
-			else if cx<=lleft then (-3)
-			else if cx>lleft&&cx<=left then (-2)
-			else if cx>left&&cx<middle then (-1)
-			else if cx>middle&&cx<=right then 1
-			else if cx>right&&cx<=rright then 2
-			else 3
-	method getPosition=xPosition
-	method getWidth=width
+	method collision cx= (** Wykrywanie kolizji z pilka. *)
+		let lleft=xPosition+(width/6) (** Obszar mocno na lewo. *)
+		and left=xPosition+(width/3) (** Obszar srednio na lewo. *)
+		and middle=xPosition+(width/2) (** Srodek. *)
+		and right=int_of_float(float_of_int(xPosition)+.(float_of_int(width))/.1.5) (** Obszar srednio na prawo. *)
+		and rright=int_of_float(float_of_int(xPosition)+.(float_of_int(width))/.1.2) in (** Obszar mocno na prawo. *)
+			if cx=middle then 0 (** Jesli srodek. *)
+			else if cx<=lleft then (-3) (** Jesli pomiedzy brzegiem a mocno na lewo. *)
+			else if cx>lleft&&cx<=left then (-2) (** Jesli pomiedzy mocno a srednio na lewo. *)
+			else if cx>left&&cx<middle then (-1) (** Jesli pomiedzy srodkiem a srednio na prawo. *)
+			else if cx>middle&&cx<=right then 1 (** Jesli pomiedzy srednio a mocno na prawo. *)
+			else if cx>right&&cx<=rright then 2 (** Jesli pomiedzy mocno na prawo a brzegiem. *)
+			else 3 (** W przeciwnym wypadku (kompatybilnosc typow.) *)
+	method getPosition=xPosition (** Pobieranie pozycji. *)
+	method getWidth=width (** Pobieranie szerokosci. *)
 end
 
-class ball=
+class ball= (** Klasa sluzaca do rysowania i obslugi pilki. *)
 object (self)
 	val mutable xPosition=210
 	val mutable yPosition=15
