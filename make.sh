@@ -3,10 +3,12 @@ if [ -n "$1" ]
 then
     if [ "$1" = "compile" ]
     then
+        ocamlopt -c tcp.ml
         ocamlopt -c io.ml
         ocamlopt -c menu.ml
         ocamlopt -thread -c game.ml
-        ocamlopt -thread -o ocamloid unix.cmxa graphics.cmxa threads.cmxa str.cmxa io.cmx menu.cmx game.cmx main.ml 
+        ocamlopt -thread -o ocamloid unix.cmxa graphics.cmxa threads.cmxa str.cmxa tcp.cmx io.cmx menu.cmx game.cmx main.ml 
+        touch scores.ocamloid
         echo -e "\nCompiled into binary named "ocamloid"."
     elif [ "$1" = "clean" ]
     then

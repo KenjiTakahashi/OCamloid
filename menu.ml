@@ -1,5 +1,6 @@
 open Graphics
 open Io
+open Tcp
 
 class instructions= (** Klasa sluzaca do wyswietlania instrukcji do gry. *)
 object (self)
@@ -97,6 +98,7 @@ end
 
 class scoreboard=
 object (self)
+    inherit tcp as remote
     inherit io as local
     val arrow_up=[|(310,620);(320,630);(330,620)|]
     val arrow_down=[|(310,380);(320,370);(330,380)|]
@@ -105,11 +107,21 @@ object (self)
     val mutable scores=[]
     val mutable index=0
     val mutable scoreboard_opt=(-1)
+    val mutable points_opt=(-1)
+    val mutable auth_opt=(-1)
     method private drawTop= (** Rysowanie tla pod top. *)
         set_color normalColor;
         fill_rect 0 360 (size_x()) (size_y())
     method get_scores=
-        scores<-local#getScores
+        if (remote#sock_connect "127.0.0.1" 6666)
+        then
+        (
+            scores<-remote#inet_get_scores;
+            remote#sock_close;
+            local#setScoreboard scores;
+            local#setScores
+        )
+        else scores<-local#getScores
     method private draw_arrows=
         fill_poly arrow_up;
         fill_poly arrow_down;
@@ -180,6 +192,136 @@ object (self)
         scoreboard_opt<-i;
         synchronize()
     method get_scoreboard_opt=scoreboard_opt
+    method drawPoints p= (** Rysowanie ilosci zdobytych punktow i miejsca na wpisanie nicku (po zakonczeniu gry). *)
+        set_color normalColor;
+        fill_rect 180 260 244 99;
+        moveto 190 344;
+        set_color black;
+        draw_string ("You've gained "^string_of_int(p)^" points");
+        self#draw_points_options
+   method private draw_points_options=
+        set_color normalColor;
+        fill_rect 180 260 244 44;
+        set_color black;
+        moveto 190 324;
+        draw_string "Enter your name:";
+        moveto 180 302;
+        lineto 424 302;
+        moveto 265 286;
+        draw_string "Store locally.";
+        moveto 180 280;
+        lineto 424 280;
+        moveto 265 264;
+        draw_string "Send to server.";
+        synchronize()
+    method points_get_option x y=
+        if (x>=180&&x<=424)
+        then
+        (
+            if (y>280&&y<=302) then 0
+            else if (y>=260&&y<=280) then 1
+            else (-1)
+        )
+        else (-1)
+    method points_highlight x y=
+        let i=self#points_get_option x y in
+        (
+            match i with
+            |0->
+                    self#draw_points_options;
+                    set_color highlightColor;
+                    fill_rect 180 282 244 19;
+                    set_color black;
+                    moveto 265 286;
+                    draw_string "Store locally."
+            |1->
+                    self#draw_points_options;
+                    set_color highlightColor;
+                    fill_rect 180 260 244 19;
+                    set_color black;
+                    moveto 265 264;
+                    draw_string "Send to server."
+            |_->self#draw_points_options
+        );
+        points_opt<-i;
+        synchronize()
+    method draw_name name=
+        set_color normalColor;
+        fill_rect 288 324 136 12;
+        set_color black;
+        moveto 288 324;
+        draw_string name;
+        fill_rect (290+(String.length name*6)) 324 5 12;
+        synchronize()
+    method draw_errors err=
+        set_color normalColor;
+        fill_rect 190 308 234 10;
+        set_color black;
+        moveto 190 308; 
+        draw_string err;
+        synchronize()
+    method draw_auth name=
+        set_color normalColor;
+        fill_rect 180 260 244 99;
+        moveto 190 344;
+        set_color black;
+        draw_string ("Password for "^name);
+        self#draw_auth_options
+    method draw_auth_options=
+        set_color normalColor;
+        fill_rect 180 260 244 44;
+        set_color black;
+        moveto 190 324;
+        draw_string "Enter the password:";
+        moveto 180 302;
+        lineto 424 302;
+        moveto 265 286;
+        draw_string "Authenticate.";
+        moveto 180 280;
+        lineto 424 280;
+        moveto 265 264;
+        draw_string "Create account.";
+        synchronize()
+    method auth_get_option x y=
+        if (x>=180&&x<=424)
+        then
+        (
+            if (y>280&&y<=302) then 0
+            else if (y>=260&&y<=280) then 1
+            else (-1)
+        )
+        else (-1)
+    method auth_highlight x y=
+        let i=self#auth_get_option x y in
+        (
+            match i with
+            |0->
+                    self#draw_auth_options;
+                    set_color highlightColor;
+                    fill_rect 180 282 244 19;
+                    set_color black;
+                    moveto 265 286;
+                    draw_string "Authenticate."
+            |1->
+                    self#draw_auth_options;
+                    set_color highlightColor;
+                    fill_rect 180 260 244 19;
+                    set_color black;
+                    moveto 265 264;
+                    draw_string "Create account."
+            |_->
+                    self#draw_auth_options
+        );
+        auth_opt<-i;
+        synchronize()
+    method draw_password l=
+        set_color normalColor;
+        fill_rect 306 324 114 12;
+        set_color black;
+        moveto 306 324;
+        draw_string (String.make l '*');
+        fill_rect (308+l*6) 324 5 12;
+        synchronize()
 end
 
 class menu= (** Klasa sluzaca do wyswietlania i obslugi menu. *)
@@ -218,13 +360,15 @@ object (self)
             |2->self#drawRight;set_color highlightColor;fill_rect 480 273 160 28;self#drawButtons (** Podswietlenie trzeciej opcji. (Scoreboard) *)
             |3->self#drawRight;set_color highlightColor;fill_rect 480 302 160 28;self#drawButtons (** Podswietlenie drugiej opcji. (Start New Game) *)
             |4->self#drawRight;set_color highlightColor;fill_rect 480 331 160 28;self#drawButtons (** Podswietlenie pierwszej opcji. (Resume) *)
-            |_->if (opt!=(-1)) then self#drawRight;self#drawButtons (** Powrot do stanu poczatkowego (bez podswietlenia). *)
+            |_->self#drawRight;self#drawButtons (** Powrot do stanu poczatkowego (bez podswietlenia). *)
         );
         opt<-i; (** Przypisanie aktualnie podswietlonej opcji do (potencjalnie) wybranej. *)
         synchronize() (** Synchronizacja obrazu. *)
     method drawGameOver=if gameOver then (set_color black;moveto 260 368;draw_string "Game Over!") (** Rysowanie napisu o koncu gry. *)
     method drawMenu=self#drawRight;self#drawTop;self#drawButtons;logo#drawLogo;self#drawGameOver (** Rysowanie menu. *)
-    method drawPoints p=moveto 320 368;draw_string ("| Points gained: "^string_of_int(p)) (** Rysowanie ilosci zdobytych punktow (po zakonczeniu gry). *)
+    method redrawPointsField=
+        set_color white;
+        fill_rect 180 260 244 99
     method drawInstructions=self#drawTop;instructions#drawText;synchronize() (** Rysowanie instrukcji. *)
     method drawScoreboard=
         self#drawTop;

@@ -47,6 +47,8 @@ object (self)
     method getScores=
         self#read;
         scoreboard
+    method setScoreboard board=
+        scoreboard<-board
     method setScores=
         self#write
     method addScore name score=

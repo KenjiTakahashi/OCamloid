@@ -35,9 +35,16 @@ let rollTheBall()= (** Funkcja przemieszczajaca pilke. *)
         match ball#isDownBelow with (** Match po pozycji pilki (na planszy/pod plansza). *)
         |true-> (** Jesli pilka pod plansza. *)
             background#updateLifes (-); (** Strata zycia. *)
-            plate#reset; (** Reset paletki. *)
-            if background#getLifes=0 then (menu#setPause false;menu#setGameOver true;menu#drawMenu;menu#drawPoints background#getPoints); (** Jesli 0 zyc, wyjscie do menu i wypisanie punktow. *)
-            ball#reset; (** Reset pilki. *)
+            ball#reset;
+            plate#reset;
+            if background#getLifes=0 then (** Jesli 0 zyc, wyjscie do menu i wyswietlenie wynikow. *)
+            (
+                menu#setPause false;
+                menu#setGameOver true;
+                menu#drawMenu;
+                menu#drawPoints background#getPoints;
+                menu#draw_name ""
+            );
             ball#changeState false (** Pilka nie porusza sie. *)
         |false-> (** Jesli pilka na planszy *)
             while !locker do delay 0.001 done; (* Jesli pauza, to oczekuje na wznowienie. *)
@@ -113,6 +120,7 @@ let menuNavigation()= (** Nawigacja po menu. *)
                         instructionsNavigation();
                         navi_aux (wait_next_event [Mouse_motion;Button_down])
                 |2-> (** Rysowanie tablicy wynikow. *)
+                        menu#get_scores;
                         menu#drawScoreboard;
                         scoreboardNavigation();
                         navi_aux (wait_next_event [Mouse_motion;Button_down])
@@ -127,6 +135,157 @@ let menuNavigation()= (** Nawigacja po menu. *)
                         board#createCollection; (** Tworzenie planszy. *)
                         board#drawCollection; (** Rysowanie planszy. *)
                         plateNavigation(); (** Uruchamianie sterowania. *)
+                        if (!locker=false)
+                        then
+                        (
+                            let rec loop i name=
+                                match i.button,i.keypressed with
+                                |true,_->
+                                        let opt=menu#points_get_option i.mouse_x i.mouse_y in
+                                        if ((opt=0||opt=1)&&(compare name "")!=0)
+                                        then
+                                        (
+                                            menu#setGameOver false;
+                                            menu#drawMenu;
+                                            menu#redrawPointsField;
+                                            synchronize()
+                                        );
+                                        (
+                                            match opt with
+                                            |0-> (** Store locally. *)
+                                                    if ((compare name "")!=0)
+                                                    then
+                                                    (
+                                                        menu#addScore name background#getPoints;
+                                                        menu#setScores;
+                                                    )
+                                                    else
+                                                    (
+                                                        menu#draw_errors "No empty names allowed.";
+                                                        loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) name
+                                                    )
+                                            |1-> (** Send to server. *)
+                                                    if ((compare name "")!=0)
+                                                    then
+                                                    (
+                                                        menu#draw_auth name;
+                                                        let rec loop_aux j pass=
+                                                            match j.button,j.keypressed with
+                                                            |true,_->
+                                                                    let aopt=menu#auth_get_option j.mouse_x j.mouse_y in
+                                                                    (
+                                                                        match aopt with
+                                                                        |0->
+                                                                                if (menu#sock_connect "127.0.0.1" 6666)
+                                                                                then
+                                                                                (
+                                                                                    if (menu#inet_auth name pass)
+                                                                                    then
+                                                                                    (
+                                                                                        menu#inet_set_score name (string_of_int background#getPoints);
+                                                                                        menu#sock_close;
+                                                                                        menu#setScores;
+                                                                                        menu#redrawPointsField;
+                                                                                        synchronize()
+                                                                                    )
+                                                                                    else
+                                                                                    (
+                                                                                        menu#draw_errors "Could not authenticate.";
+                                                                                        menu#sock_close;
+                                                                                        loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) pass
+                                                                                    )
+                                                                                )
+                                                                                else
+                                                                                (
+                                                                                    menu#draw_errors "Could not connect to server.";
+                                                                                    loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) pass
+                                                                                )
+                                                                        |1->
+                                                                                if (menu#sock_connect "127.0.0.1" 6666)
+                                                                                then
+                                                                                (
+                                                                                    if (menu#inet_register name pass)
+                                                                                    then
+                                                                                    (
+                                                                                        menu#inet_set_score name (string_of_int background#getPoints);
+                                                                                        menu#sock_close;
+                                                                                        menu#setScores;
+                                                                                        menu#redrawPointsField;
+                                                                                        synchronize()
+                                                                                    )
+                                                                                    else
+                                                                                    (
+                                                                                        menu#sock_close;
+                                                                                        menu#draw_errors "Could not create account.";
+                                                                                        loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) pass
+                                                                                    )
+                                                                                )
+                                                                                else
+                                                                                (
+                                                                                    menu#draw_errors "Could not connect to server.";
+                                                                                    loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) pass
+                                                                                )
+                                                                        |_->loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) pass
+                                                                    )
+                                                            |false,true->
+                                                                    let r=j.key in
+                                                                    let s=Char.code r in
+                                                                    if (((s>=48&&s<=57)||(s>=65&&s<=90)||(s>=97&&s<=122))&&(String.length pass<=20))
+                                                                    then
+                                                                    (
+                                                                        let new_pass=pass^(String.make 1 r) in
+                                                                        menu#draw_password (String.length new_pass);
+                                                                        loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) new_pass
+                                                                    )
+                                                                    else if (s=8&&(compare pass "")!=0)
+                                                                    then
+                                                                    (
+                                                                        let new_pass=Str.string_before pass (String.length pass-1) in
+                                                                        menu#draw_password (String.length new_pass);
+                                                                        loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) new_pass
+                                                                    )
+                                                                    else if (s=27)
+                                                                    then
+                                                                    (
+                                                                        menu#redrawPointsField;
+                                                                        synchronize()
+                                                                    )
+                                                                    else loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) pass
+                                                            |false,false->
+                                                                    menu#auth_highlight j.mouse_x j.mouse_y;
+                                                                    loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) pass
+                                                        in loop_aux (wait_next_event [Mouse_motion;Button_down;Key_pressed]) ""
+                                                    )
+                                                    else
+                                                    (
+                                                        menu#draw_errors "No empty names allowed.";
+                                                        loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) name
+                                                    )
+                                            |_->loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) name
+                                        )
+                                |false,true->
+                                        let k=i.key in 
+                                        let c=Char.code k in
+                                        if (((c>=48&&c<=57)||(c>=65&&c<=90)||(c>=97&&c<=122))&&(String.length name<=20))
+                                        then
+                                        (
+                                            let new_name=name^(String.make 1 k) in
+                                            menu#draw_name new_name;
+                                            loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) new_name
+                                        )
+                                        else if (c=8&&(compare name "")!=0)
+                                        then
+                                        (
+                                            let new_name=Str.string_before name (String.length name-1) in
+                                            menu#draw_name new_name;
+                                            loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) new_name
+                                        )
+                                        else loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) name
+                                |false,false->
+                                        menu#points_highlight i.mouse_x i.mouse_y;
+                                        loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) name
+                            in loop (wait_next_event [Mouse_motion;Button_down;Key_pressed]) ""
+                        );
                         navi_aux (wait_next_event [Mouse_motion;Button_down])
                 |4-> (** Wlaczenie pauzy. *)
                         locker:=false;
@@ -142,7 +301,6 @@ let main= (** Uruchamianie programu. *)
     set_window_title "OCamloid 1.0"; (** Ustawienie tytulu okna. *)
     plate#draw; (** Rysowanie paletki. *)
     ball#draw; (** Rysowanie pilki. *)
-    menu#get_scores;
     menu#drawMenu; (** Rysowanie menu. *)
     auto_synchronize false; (** Wylaczenie automatycznej synchronizacji (aby zapobiec miganiu animacji). *)
     menuNavigation() (** Uruchamianie nawigacji po menu. *)
